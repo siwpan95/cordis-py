@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**待 review 放行** · 2026-10-17 · 立项人：全哥 · 计划：WorkBuddy
+> 状态：**P1 已完成**（2026-10-17，58 项测试全绿，已推送分支 `p1-core-engine`）· P2 待放行
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -29,7 +29,7 @@
 | 项 | 值 | 状态 |
 |---|---|---|
 | 本地目录 | `G:\repos\cordis-py` | 本计划落地点 |
-| Gitee 仓库 | `cordis-py`（public + MIT） | ⚠️ 建仓属高风险，**待放行**（铁律 4/7） |
+| Gitee 仓库 | `cordis-py`（public + MIT） | ✅ 已建仓推送（分支 `p1-core-engine`，匿名可 clone） |
 | PyPI 发行名 | **`dse-core`** | ✅ 已核实可用（`pypi.org/pypi/dse-core` → 404） |
 | import 名 | `dse_core` | 与品牌、README 示例一致 |
 | CLI 命令 | `dse` | 与 Node 版一致 |
@@ -71,12 +71,16 @@
 
 ## 6. 分阶段计划
 
-### P1 · 可发布的最小引擎
+### P1 · 可发布的最小引擎 —— ✅ 已完成（2026-10-17）
+
 - runtime + 内核四插件（scenes / state / console-io / engine 主循环）
 - modes / graph / manifest / loader / schema / safety 六件套
 - starter 内容包译成 YAML + 示例 `dse.yml` 工程
 - unit 测试直译 + pytest 全绿；最小 CLI：`play / check / scenes / info`
-- **验收**：TestPyPI 安装后可玩通 starter；单测全绿
+- **偏差记录**：combat 参考能力插件从 P3 提前到 P1 —— starter 的战斗线是示例内容包的
+  主线路，且 mode 委托架构需要至少一个能力插件来证明；trade / dialogue / diary 仍在 P3。
+- **验收**：✅ `dse play --input ...` 脚本跑通战斗线；`dse check` 通过（7 场景 / 3 结局全可达）；
+  58 项测试全绿；sdist + wheel 构建成功。**TestPyPI 安装验证待用户放行后执行**（见 §7）。
 
 ### P2 · 系统层与完整 CLI
 - save / save-migrate / achievements / i18n 插件；CLI 补 `packs / new / doctor / saves`
