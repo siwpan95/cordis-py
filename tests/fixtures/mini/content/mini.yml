@@ -1,0 +1,23 @@
+pack: { id: mini, name: 迷你线路, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 起点
+    text: 你有 {gold} 金币，HP {hp}。
+    choices:
+      - text: 拿钱走人
+        do: { gold: +5 }
+        goto: end-rich
+      - text: 静静离开
+        goto: end-quiet
+      - text: （不可见的路）
+        if: 'gold > 100'
+        goto: end-quiet
+  end-rich:
+    title: 结局 · 富足
+    text: 你带着 {gold} 金币离开了。
+    choices:
+      - text: 再来一次
+        goto: '@restart'
+  end-quiet:
+    title: 结局 · 静默
+    text: 什么也没发生。

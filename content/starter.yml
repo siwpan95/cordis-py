@@ -1,0 +1,79 @@
+# 内容包：starter（P1 · 战斗线最小可玩版）
+#
+# 定位与 Node 版 starter.js 相同：骨架演示，不是游戏 —— 让新同学读完这
+# 一个文件就知道内容包能写什么。P1 覆盖 normal / battle 两种模式与
+# @restart；trade / dialogue / diary 线随 P3 能力插件补齐后迁入。
+pack:
+  id: starter
+  name: 启程 · 山道
+  version: 0.1.0
+  entry: start
+  description: P1 示例：一条跑通 normal/battle/结局/@restart 的最小可玩线路
+  author: dse-core
+  modes: [battle]
+  requires:
+    plugins: [combat]
+    state: [gold, hp, atk]
+
+scenes:
+  # ── 枢纽：进山，或回屋 ──────────────────────────────────────
+  start:
+    title: 村口 · 启程
+    text: 天没亮透，土路泛着潮气。你背上行囊，你娘把最后一包干粮塞进侧袋，手在包袱上按了按，没说话。往北是山，山里有过狼；身后是自家那扇还没上漆的木门。
+    choices:
+      - text: 往北进山
+        do: { 'flags.starter.mountain': true }
+        goto: forest
+      - text: 回屋，今天不出门
+        goto: inn-wait
+
+  # ── 战斗线：normal → battle ─────────────────────────────────
+  forest:
+    title: 山道 · 林深处
+    text: 松针压了一路，越往里越静。走到半坡，风忽然停了，林子里只剩你自己的脚步声。前面的灌木动了一下——一只独眼狼从阴影里站起来，耳朵贴着背，喉咙里滚着低音。它挡的是唯一的路。腰间那柄锈剑冰凉。
+    choices:
+      - text: 拔剑
+        goto: wolf-fight
+      - text: 握着剑柄，慢慢退回去
+        do: { 'flags.starter.fled': true }
+        goto: start
+
+  wolf-fight:
+    title: 山道 · 遭遇
+    text: 狼绕着你走了半圈，那只独眼始终盯着你的右手，没有眨过。你想起村里老猎户的话：它看的不是你的人，是你什么时候先动。于是你也不动，任由汗从额头滑到下巴，等它先犯错。
+    mode: battle
+    battle: { enemy: wolf, onWin: forest-win, onLose: forest-lose, onFlee: start }
+
+  forest-win:
+    title: 山道 · 狼倒下之后
+    text: 狼倒在松针上，血把针叶黏成一团，慢慢不再起伏。你喘了很久才直起腰。狼窝旁边压着一只旧木匣，里头是一枚生锈的渡口令牌。顺着狼来的方向往下走，能听见水声——但雾太浓，今天过不了河。
+    onEnter: { 'items.token': +1, 'flags.starter.wolfWin': true }
+    choices:
+      - text: 揣好令牌，回村
+        do: { 'flags.starter.backHome': true }
+        goto: start
+      - text: 力气还够，在林间再过一夜
+        if: 'hp >= 10'
+        goto: end-hero
+
+  forest-lose:
+    title: 结局 · 山道无归
+    text: 你倒下的时候，最后看见的是松针间漏下来的那点天光。狼没有立刻动口，它先闻了闻你的手——那手上什么也没有。这山上从此多了一条不该走的道，可每年还是有人走，因为每个人都觉得自己跟别人不一样。
+    choices:
+      - text: 再来一次
+        goto: '@restart'
+
+  # ── 结局 ────────────────────────────────────────────────────
+  end-hero:
+    title: 结局 · 过河的人
+    text: 你在林间生了一堆火。令牌在怀里，锈迹被体温焐得温热。河那头有什么你不知道，但你知道自己是从哪边过来的——这就够了。
+    choices:
+      - text: 再来一次
+        goto: '@restart'
+
+  inn-wait:
+    title: 结局 · 留在岸这边
+    text: 你回了屋，把门关上。路还摆在那儿，明天还在——你这样想，然后就睡着了。有些山，是不用过的。
+    choices:
+      - text: 再来一次
+        goto: '@restart'

@@ -1,0 +1,15 @@
+- id: scenes
+  config:
+    packs: [./content/battle.yml]
+- id: state
+  config:
+    initial: { name: 测试员, hp: 20, maxHp: 20, atk: 10, def: 2, crit: 0, gold: 0, items: {} }
+- id: io
+- id: engine
+  config:
+    entry: start
+    prompt: '> '
+- id: combat
+  config:
+    enemies:
+      dummy: { name: 木桩假人, hp: 2, atk: 0, def: 0, crit: 0, drops: { gold: +7 } }

@@ -1,0 +1,64 @@
+# 字典场景引擎内核（dse-core）· 插件清单（Python 版）
+#
+# 与内容仓库的关系：本文件是**引擎默认开发配置**，只挂自带示例内容包
+# （content/starter.yml）。真正的项目应在自己的仓库里放一份 dse.yml，
+# 指向自己的内容包与数值表 —— 引擎代码一行都不用改。
+#
+# 依赖由运行时按 inject 声明拓扑编排：全部就绪后才会 setup。
+#
+# 插件分层：
+#   内核层  scenes / state / io / engine     引擎不可拔的四个基础服务
+#   能力层  combat                           接管 scene.mode 的可选玩法
+#          （P3 补 trade / dialogue / diary）
+
+# ── 内核层 ──────────────────────────────────────────────────────
+- id: scenes
+  config:
+    packs:                       # 内容包列表（后者覆盖前者同 ID 场景）
+      - ./content/starter.yml    # 引擎自带示例；换成自己的内容包即可
+
+- id: state
+  config:
+    # 时间循环保留域：goto '@loop:<场景>' 时保留这些前缀下的知识，
+    # 其余状态回 initial（"知识跨轮保留、消耗态每轮复原"）
+    loopKeep:
+      - clues.loop
+      - flags.loop
+    # 玩家初始状态。内容包用到的顶层字段必须在这里预声明，
+    # 否则条件表达式求值时报 NameError（dse check 会拦下）
+    initial:
+      name: 旅人
+      hp: 20
+      maxHp: 20
+      atk: 3                     # 基础攻击（+ 武器加成 = 实际 ATK）
+      def: 2                     # 防御（每点抵消 defenseFactor 点伤害）
+      crit: 0.15                 # 暴击率
+      gold: 20
+      items: {}
+      flags:
+        loop: {}                 # 时间循环中间层（预声明，条件链才不抛错）
+      clues:
+        loop: {}                 # 时间循环跨轮知识（loopKeep 保留域）
+
+- id: io
+
+- id: engine
+  config:
+    entry: start                 # 入场场景 ID（可用 DSE_ENTRY / --entry 覆盖）
+    prompt: '>> '
+
+# ── 能力层（每种能力接管一种 scene.mode）────────────────────────
+- id: combat
+  config:
+    formula:                     # 数值公式参数（可选，覆盖默认值）
+      variance: 0.2              # 伤害随机波动 ±20%
+      defenseFactor: 0.5         # 每点防御抵消的伤害
+      critMult: 1.8              # 暴击倍率
+      defendCut: 0.5             # 防御姿态减伤 50%
+      fleeChance: 0.45           # 逃跑成功率
+    weapons:                     # 武器加成（按背包数量累加到玩家 ATK）
+      rusty_sword:   { name: 锈剑, atk: 4 }
+      silver_dagger: { name: 银匕首, atk: 3 }
+    enemies:                     # 敌人字典（数据驱动，与场景字典同哲学）
+      wolf:   { name: 独眼狼, hp: 12, atk: 3, def: 0, crit: 0.10, drops: { gold: +5, 'items.wolf_pelt': +1 } }
+      bandit: { name: 沙盗,   hp: 14, atk: 3, def: 1, crit: 0.12, drops: { gold: +12 } }

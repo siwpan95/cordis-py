@@ -1,0 +1,11 @@
+- id: scenes
+  config:
+    packs: [./content/mini.yml]
+- id: state
+  config:
+    initial: { name: 测试员, hp: 10, gold: 5, items: {} }
+- id: io
+- id: engine
+  config:
+    entry: start
+    prompt: '> '

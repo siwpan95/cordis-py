@@ -1,0 +1,19 @@
+pack: { id: battle-demo, name: 战斗演示, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 空地
+    text: 一只木桩假人挡在面前，一动不动。
+    choices:
+      - text: 开打
+        goto: fight
+  fight:
+    title: 战斗
+    text: 你举起了锈剑。
+    mode: battle
+    battle: { enemy: dummy, onWin: win, onLose: lose, onFlee: start }
+  win:
+    title: 胜利
+    text: 假人裂成了两半。你多了 {gold} 金币。
+  lose:
+    title: 失败
+    text: 你倒下了。
