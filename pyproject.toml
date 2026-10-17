@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dse-core"
+version = "0.1.0"
+description = "字典场景引擎（Dictionary Scene Engine）—— 场景即字典，能力即插件"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "全哥 (siwpan)" }]
+keywords = [
+    "text-adventure",
+    "interactive-fiction",
+    "game-engine",
+    "plugin-architecture",
+    "narrative-engine",
+    "dialogue-graph",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+]
+dependencies = [
+    "PyYAML>=6.0",
+    "jsonschema>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "build",
+    "twine",
+]
+
+[project.urls]
+Homepage = "https://gitee.com/siwpan/cordis-py"
+Repository = "https://gitee.com/siwpan/cordis-py"
+Issues = "https://gitee.com/siwpan/cordis-py/issues"
+
+[project.scripts]
+dse = "dse_core.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dse_core = ["schema/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

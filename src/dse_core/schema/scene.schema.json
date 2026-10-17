@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gitee.com/siwpan/dse-core/schema/scene.schema.json",
+  "title": "DSE Scene Dictionary",
+  "description": "字典场景引擎的场景字典 Schema。一个内容包导出 { [sceneId]: Scene }；本文件描述其中的 Scene / Choice / Effects，供编辑器补全、CI 校验与文档生成消费（运行时校验由 plugins/scenes.js 的 validate() 负责，两者口径保持一致）。",
+  "definitions": {
+    "Effects": {
+      "type": "object",
+      "description": "效果对象。数值=加减，非数值=赋值，点路径=深层写入。",
+      "additionalProperties": true,
+      "propertyNames": {
+        "pattern": "^(?!.*(__proto__|constructor|prototype))[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)*$"
+      }
+    },
+    "Choice": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string", "description": "选项文本，支持 {path} 状态插值" },
+        "if": { "type": "string", "description": "显示条件表达式（基于玩家状态求值），缺省恒真" },
+        "do": { "$ref": "#/definitions/Effects", "description": "选中后执行的效果" },
+        "goto": {
+          "description": "跳转目标。普通场景 ID；特殊目标 @restart / @loop:<场景ID>",
+          "anyOf": [
+            { "type": "string", "pattern": "^@(restart|loop:[A-Za-z0-9._-]+)$" },
+            { "type": "string", "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*(\\.[a-z0-9]+([-_][a-z0-9]+)*)*$" }
+          ]
+        }
+      }
+    },
+    "Battle": {
+      "type": "object",
+      "description": "mode: 'battle' 的战斗配置（由 combat 插件接管）",
+      "required": ["enemy"],
+      "additionalProperties": false,
+      "properties": {
+        "enemy": { "type": "string", "description": "敌人 ID，必须在 cordis.yml combat.enemies 中定义" },
+        "onWin": { "type": "string" },
+        "onLose": { "type": "string" },
+        "onFlee": { "type": "string" }
+      }
+    },
+    "Trade": {
+      "type": "object",
+      "description": "mode: 'trade' 的经营配置（由 trade 插件接管）",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "description": "市场名（缺省取插件 config.place）" },
+        "days": { "type": "integer", "minimum": 1, "description": "经营天数，不得超过行情表列数" },
+        "onEnd": { "type": "string" }
+      }
+    },
+    "Diary": {
+      "type": "object",
+      "description": "mode: 'diary' 的日记回溯配置（由 diary 插件接管）",
+      "additionalProperties": false,
+      "properties": {
+        "onExit": { "type": "string", "description": "退出回溯后回到的场景" }
+      }
+    },
+    "Topic": {
+      "type": "object",
+      "required": ["id", "name", "reply"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "话题显示名（可 ask <name>）" },
+        "reply": { "type": "string", "description": "对方回答正文" },
+        "if": { "type": "string", "description": "话题可见条件" },
+        "effect": { "$ref": "#/definitions/Effects", "description": "问完后执行的效果" }
+      }
+    },
+    "Dialogue": {
+      "type": "object",
+      "description": "mode: 'dialogue' 的对话配置（由 dialogue 插件接管）",
+      "additionalProperties": false,
+      "properties": {
+        "npc": { "type": "string" },
+        "notes": { "type": "integer", "minimum": 0, "description": "注意点预算，0 = 不限" },
+        "onEnd": { "type": "string" },
+        "topics": { "type": "array", "items": { "$ref": "#/definitions/Topic" } }
+      }
+    },
+    "Scene": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "description": "场景标题，支持插值；缺省用场景 ID" },
+        "text": { "type": "string", "description": "正文，支持 {path} 状态插值" },
+        "onEnter": { "$ref": "#/definitions/Effects", "description": "进入场景时执行的效果" },
+        "mode": {
+          "type": "string",
+          "description": "normal = 引擎渲染选项并判定结局；其他模式由能力插件接管",
+          "enum": ["normal", "battle", "trade", "diary", "dialogue"],
+          "default": "normal"
+        },
+        "choices": {
+          "type": "array",
+          "description": "选项列表；省略或空 = 结局场景（normal 模式）",
+          "items": { "$ref": "#/definitions/Choice" }
+        },
+        "battle": { "$ref": "#/definitions/Battle" },
+        "trade": { "$ref": "#/definitions/Trade" },
+        "diary": { "$ref": "#/definitions/Diary" },
+        "dialogue": { "$ref": "#/definitions/Dialogue" }
+      }
+    },
+    "PackManifest": {
+      "type": "object",
+      "description": "内容包元数据（模块导出名 pack，可选）",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+        "name": { "type": "string" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+" },
+        "entry": { "type": "string" },
+        "description": { "type": "string" },
+        "author": { "type": "string" },
+        "modes": { "type": "array", "items": { "type": "string" } },
+        "requires": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "plugins": { "type": "array", "items": { "type": "string" } },
+            "state": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  },
+  "type": "object",
+  "description": "内容包：场景 ID → 场景定义",
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*(\\.[a-z0-9]+([-_][a-z0-9]+)*)*$"
+  },
+  "additionalProperties": { "$ref": "#/definitions/Scene" }
+}
