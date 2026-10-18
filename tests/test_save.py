@@ -201,3 +201,17 @@ def test_setup_skips_bad_migration_module(tmp_path):
     service = SaveMigrateService(ctx, {"version": 2, "migrations": {2: "no.such.module"}})
     service.setup()  # 不炸，只告警
     assert service.migrations == {}
+
+
+def test_save_dir_env_override(tmp_path, monkeypatch):
+    """DSE_SAVE_DIR 覆盖配置目录——安装态内容项目（root 在 site-packages）靠它
+    把存档导到用户数据目录。"""
+    custom = tmp_path / "custom-saves"
+    monkeypatch.setenv("DSE_SAVE_DIR", str(custom))
+    ctx = _ctx(tmp_path)
+    service = SaveService(ctx, {"dir": "./saves"})
+    assert service.dir == custom.resolve()
+    # 未设环境变量时仍按 config.dir 相对工程根解析
+    monkeypatch.delenv("DSE_SAVE_DIR")
+    service2 = SaveService(ctx, {"dir": "./saves"})
+    assert service2.dir == (tmp_path / "saves").resolve()

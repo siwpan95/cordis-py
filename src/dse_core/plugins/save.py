@@ -32,8 +32,13 @@ class SaveService(Service):
 
     def __init__(self, ctx, config):
         super().__init__(ctx, config)
-        # 目录基准用 ctx 根（锚定项目根），而非 cwd：从任意目录跑都读写同一份存档
-        self.dir = (self.ctx.root / (self.config.get("dir") or "./saves")).resolve()
+        # 目录基准用 ctx 根（锚定项目根），而非 cwd：从任意目录跑都读写同一份存档。
+        # DSE_SAVE_DIR 可覆盖——安装态内容项目（root 在 site-packages 里）用它把存档
+        # 导到用户数据目录，避免写安装目录。
+        env_dir = os.environ.get("DSE_SAVE_DIR")
+        self.dir = (
+            Path(env_dir) if env_dir else self.ctx.root / (self.config.get("dir") or "./saves")
+        ).resolve()
 
     def setup(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
