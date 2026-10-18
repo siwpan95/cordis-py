@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**P1/P2/P3 代码完成**（P1 已发 0.1.0；P2 已发 0.2.0；P3 待发 0.3.0，待全哥放行）· P4 待排
+> 状态：**P1-P4 代码全部完成**（P1 发 0.1.0 / P2 发 0.2.0；P3+P4 待发 0.3.0，待全哥放行）
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -105,8 +105,18 @@
 - **测试**：97 项全绿（P1 58 + P2 31 + P3 8）；经营全周期逐金可算、对话去重/预算、
   重读零状态变更（与正规进入场景的 onEnter 对照）均有断言
 
-### P4 · 表现/开发层与生态
-- sound（wave 合成）/ hot-reload；Node 内容包 → YAML 迁移工具；文档
+### P4 · 表现/开发层与生态 —— ✅ 代码完成（2026-10-18）
+
+- sound：程序化合成 PCM（波形 + ADSR，stdlib wave 编码）+ 事件订阅 +
+  数据驱动音效库；Windows winsound 异步播放，其他平台子进程，无播放器静默降级；
+  静音（DSE_MUTE > config.mute）不生成文件，退出清理临时文件
+- hot-reload：stdlib 轮询线程（mtime + 防抖，零第三方依赖）→ scenes.reload
+  （双缓冲，坏包保留旧字典）→ emit 'hot-reload/applied' → 音效插件发声
+- **scenes.reload()**：热更核心机制，从 Node 版补移植（双缓冲 + 回滚内容缓存）
+- 内容迁移工具：随 dict-scene-engine 重构交付（该仓 scripts/migrate/，
+  export-packs.mjs + json2yaml.py + port-manifest.py，已实证转换 39 包/587 场景）
+- **测试**：107 项全绿（合成形状/WAV 头、静音零文件、播放即清理、
+  reload 热更/拒坏包/跳未知包、路径白名单、轮询线程集成）
 
 ## 7. 发布路径（PyPI）
 

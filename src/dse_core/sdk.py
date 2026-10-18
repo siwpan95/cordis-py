@@ -27,10 +27,12 @@ from .plugins.console_io import ConsoleIO
 from .plugins.dialogue import DialogueService
 from .plugins.diary import DiaryService
 from .plugins.engine import EngineService
+from .plugins.hot_reload import HotReloadService
 from .plugins.i18n import I18nService
 from .plugins.save import SaveService
 from .plugins.save_migrate import SaveMigrateService
 from .plugins.scenes import SceneService
+from .plugins.sound import SoundService
 from .plugins.state import StateService
 from .plugins.trade import TradeService
 from .runtime import Context, Service
@@ -59,6 +61,7 @@ __all__ = [
 # 内核层：scenes / state / io / engine
 # 能力层：combat / trade / diary / dialogue（各接管一种 scene.mode）
 # 系统层：save / save-migrate / achievements / i18n
+# 表现层：sound    开发层：hot-reload
 _BUILTIN_PLUGINS = {
     "scenes": SceneService,
     "state": StateService,
@@ -72,6 +75,8 @@ _BUILTIN_PLUGINS = {
     "save-migrate": SaveMigrateService,
     "achievements": AchievementsService,
     "i18n": I18nService,
+    "sound": SoundService,
+    "hot-reload": HotReloadService,
 }
 
 

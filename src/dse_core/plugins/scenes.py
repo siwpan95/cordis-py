@@ -111,6 +111,30 @@ class SceneService(Service):
         self.dict = nxt
         return True
 
+    def reload(self, rel: str) -> bool:
+        """热重载一个内容包：重新读取并重建字典（双缓冲，失败保留旧内容）。
+
+        与 Node 版 scenes.js reload() 对应：先整体校验，通过才原子替换；
+        任何一步失败都回滚内容缓存，保证「校验失败 = 旧字典毫发无损」。
+        """
+        if rel not in self.loaded:
+            self.ctx.warn("scenes", f"reload skipped: 内容包 {rel} 不在配置中")
+            return False
+        previous = self.loaded[rel]
+        try:
+            pack = self.import_pack(rel)
+        except (OSError, ValueError) as exc:
+            self.ctx.error("scenes", f"reload rejected: {exc}（保留旧内容）")
+            return False
+        self.loaded[rel] = pack
+        try:
+            self.rebuild()
+            return True
+        except ValueError as exc:
+            self.loaded[rel] = previous  # 回滚缓存，与字典保持一致
+            self.ctx.error("scenes", f"reload rejected: {exc}（保留旧内容）")
+            return False
+
     def get(self, scene_id: str) -> dict:
         scene = self.dict.get(scene_id)
         if scene is None:
