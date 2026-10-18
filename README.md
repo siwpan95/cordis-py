@@ -11,7 +11,11 @@ pip install -e .          # 开发安装（或 pip install dse-core）
 dse play                  # 玩自带示例内容包（战斗线最小可玩版）
 dse play --input "1,1,a,a,a"   # 脚本模式：无交互跑完整条线路（CI 友好）
 dse scenes                # 列出场景
+dse packs                 # 列出内容包（manifest / 依赖声明）
 dse check                 # 校验内容（悬空跳转等），有问题退出码 1
+dse doctor                # 体检 + 内容模式 vs 已装插件交叉核对
+dse saves                 # 离线列出存档位
+dse new my-pack --template hub   # 脚手架生成 YAML 内容包并挂进 dse.yml
 ```
 
 自带示例工程随包发布（`src/dse_core/example/`）：在含 `dse.yml` 的目录里
@@ -56,8 +60,10 @@ dse_core/
 ├── safety.py      # 条件表达式 AST 白名单求值
 ├── runtime.py     # 插件运行时（Service/Context/依赖拓扑/事件）—— Cordis 的 Python 原生替代
 ├── sdk.py         # 编程式门面（create_engine / play / inspect_project）
-├── cli.py         # 命令行 dse：play / scenes / info / check
-└── plugins/       # 内核层 scenes/state/console_io/engine + 参考能力插件 combat
+├── cli.py         # 命令行 dse：play / scenes / info / check / packs / saves / doctor / new
+└── plugins/       # 内核层 scenes/state/console_io/engine
+                   # 能力层 combat
+                   # 系统层 save/save-migrate/achievements/i18n（P2）
 ```
 
 插件用声明式依赖组装，引擎零改动即可扩展：
@@ -72,10 +78,20 @@ class MyPlugin(Service):
         self.ctx.on("scene/enter", lambda scene_id, scene: ...)
 ```
 
+**系统层插件**（P2，`dse.yml` 里按 id 启用）：
+
+| 插件 | 能力 |
+|---|---|
+| `save` | save/load/slots 命令；slot 白名单 + 原子落盘 + 读档结构校验 + 场景改名兜底 |
+| `save-migrate` | 存档版本链迁移（`config.migrations` 挂模块，旧档不失效） |
+| `achievements` | 事件驱动成就解锁（scene/enter + choice/made），随档持久化 |
+| `i18n` | `@key@` 查表替换（未命中原样保留）、`lang` 命令切换语言 |
+
 ## 与 Node 版的关系
 
 - Node 版持续维护；本仓库是**移植版**，内容格式不互通（YAML ↔ ESM）。
-- 移植路线图：**P1 可发布最小引擎（本阶段）→ P2 系统层（save/achievements/i18n）+ 完整 CLI → P3 能力层（trade/dialogue/diary）→ P4 表现层（sound/hot-reload）+ 内容迁移工具**。详见 [PLAN.md](PLAN.md)。
+- 移植路线图：**P1 可发布最小引擎 ✅ → P2 系统层与完整 CLI ✅ → P3 能力层（trade/dialogue/diary）→ P4 表现层（sound/hot-reload）+ 内容迁移工具**。详见 [PLAN.md](PLAN.md)。
+- **已知边界**：内容用了某模式但没装对应插件时，引擎**响亮报错**（而非 Node 版的静默回退）——`dse doctor` 可静态交叉核对。
 
 ## 安全模型
 

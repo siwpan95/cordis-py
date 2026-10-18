@@ -24,6 +24,7 @@ import os
 import sys
 import traceback
 
+from .. import modes
 from ..runtime import Service
 
 
@@ -91,6 +92,15 @@ class EngineService(Service):
                 self.goto(mode_result["redirect"])
                 continue
             handled = bool(mode_result)
+            if not handled and mode != "normal":
+                # 已注册模式但无插件接管 = 配置错误。Node 版此处静默回退 normal
+                # 渲染，会把 mode 场景误判成结局（无选项 → 「（完）」）；
+                # Python 版选择响亮失败，避免内容在半个引擎上跑出静默错误行为。
+                plugin = modes.MODE_REGISTRY.get(mode, {}).get("plugin") or mode
+                raise RuntimeError(
+                    f'场景 "{self.current}" 使用模式 "{mode}"，但没有插件接管'
+                    f"（请在 dse.yml 安装 {plugin} 插件）"
+                )
             self.ctx.emit("scene/enter", self.current, scene)
 
             # 2. 首次渲染（纯输出，不改状态）

@@ -1,0 +1,20 @@
+pack: { id: sys, name: 系统层演示, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 起点
+    text: 你有 {gold} 金币。
+    choices:
+      - text: 赚一笔
+        do: { gold: +10 }
+        goto: rich
+      - text: 静静离开
+        goto: quiet
+  rich:
+    title: 富足
+    text: 你现在有 {gold} 金币。
+    choices:
+      - text: 回起点
+        goto: start
+  quiet:
+    title: 静默结局
+    text: 什么也没发生。

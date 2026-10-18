@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**P1 已完成并发布 PyPI 0.1.0**（2026-10-18）· P2 待排
+> 状态：**P1+P2 已完成**（P1 已发布 PyPI 0.1.0；P2 于 2026-10-18 完成，88 项测试全绿，待发 0.2.0）· P3 待排
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -82,9 +82,19 @@
 - **验收**：✅ `dse play --input ...` 脚本跑通战斗线；`dse check` 通过（7 场景 / 3 结局全可达）；
   58 项测试全绿；sdist + wheel 构建成功。**TestPyPI 安装验证待用户放行后执行**（见 §7）。
 
-### P2 · 系统层与完整 CLI
-- save / save-migrate / achievements / i18n 插件；CLI 补 `packs / new / doctor / saves`
-- e2e + cli 测试直译
+### P2 · 系统层与完整 CLI —— ✅ 已完成（2026-10-18）
+
+- save / save-migrate / achievements / i18n 四插件（Node 版 1:1 移植）
+- save 吸收 dse-core 新版特性：save-migrate 可选集成（版本盖章 + 按链迁移，不 inject）
+- CLI 补 packs / saves / doctor / new（7 个模板；`new` 文本级注册进 dse.yml，保留注释格式）
+- **引擎加固**：内容用了某模式但无插件接管时**响亮报错**（Node 版静默回退 normal 会把
+  mode 场景误判成结局）；`dse doctor` 提供静态交叉核对（模式 × 已装插件）
+- **测试**：88 项全绿（P1 58 + P2 30）；e2e 覆盖存档往返、成就随档、v1→v2 迁移、
+  战斗中之外无插件模式的失败路径
+- **踩坑记账**：① 上一轮四个 Write 被用户中断后整体回滚——**分块落盘 + 即时提交**；
+  ② 模式守卫初版漏了 `mode != "normal"` 条件，把 normal 也拦了（6 个 e2e 挂掉）——
+  测试即护栏；③ 测试夹具 wiring 要调 setup()（table 在 setup 里建）， stub io 会被
+  `ctx.io.print` 教做人。
 
 ### P3 · 能力层（玩法插件）
 - combat / trade / diary / dialogue + 数值配置直译（武器表 / 敌人字典 / 商品行情表）

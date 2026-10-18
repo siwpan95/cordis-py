@@ -1,0 +1,7 @@
+pack: { id: nomode, name: 无插件模式, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 开市
+    text: 一个没有 trade 插件的经营场景（引擎应响亮报错，而不是静默按 normal 渲染）。
+    mode: trade
+    trade: { name: 集市, days: 3, onEnd: start }
