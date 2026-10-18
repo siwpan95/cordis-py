@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**P1-P4 代码全部完成**（P1 发 0.1.0 / P2 发 0.2.0；P3+P4 待发 0.3.0，待全哥放行）
+> 状态：**P1-P4 全部完成并发布**（0.1.0 / 0.2.0 / 0.3.0 均已上 PyPI；107 测试全绿）· 引擎侧无剩余缺口
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -125,7 +125,19 @@
 - **本地验收已完成**（2026-10-18）：58 测试全绿；wheel 装入全新 venv、从中立目录试玩通过 —— TestPyPI 能验的检查点本地已全覆盖，建议直发 PyPI（若全哥要 TestPyPI 仪式也可）。
 - **待全哥提供 token**：`TWINE_USERNAME=__token__ TWINE_PASSWORD=<tok> twine upload dist/*`（环境变量传递、不落盘）；发布后匿名核对 `pypi.org/pypi/dse-core/json` + 干净 venv 安装试玩。
 
-## 7.1 发布实录（2026-10-18）
+## 7.1 发布实录（0.1.0，2026-10-18）
+
+- token 来源：全哥指路 `G:\凭据管理器\私人令牌.txt`（siwpan 账号 9 月已建，TestPyPI + PyPI 双 token 现成；**无需注册**）。
+- 流程：`twine check` 双 PASSED → TestPyPI 上传 → 全新 venv 从 TestPyPI 装（注意：TestPyPI 缺新版依赖，须 `--extra-index-url https://pypi.org/simple`）→ 中立目录试玩通过 → PyPI 上传 → 匿名核对（JSON 元数据五项正确、项目页 200）→ 全新 venv `pip install dse-core` 试玩通过（exit 0）。
+- 小插曲：发布后 simple 索引有约 1 分钟传播延迟，`pip install` 一度 404，重试即成功——**发布后别急着判死刑**。
+
+## 7.2 发布实录（0.2.0 / 0.3.0，2026-10-18）
+
+- **0.2.0**（P2）：四系统层插件 + CLI 补全 + 模式守卫 + DSE_SAVE_DIR。全链路同 0.1.0 仪式。
+- **0.3.0**（P3+P4）：能力层三插件（trade/diary/dialogue）+ sound + hot-reload +
+  scenes.reload()。twine check 双 PASSED → 上传 → 匿名核对（项目页 200、
+  新 venv `pip install dse-core==0.3.0` 版本正确、`dse doctor` 正常）。
+- 至此 **Node 版 47 个源文件对应的引擎能力全部移植完毕**，无剩余缺口。
 
 - token 来源：全哥指路 `G:\凭据管理器\私人令牌.txt`（siwpan 账号 9 月已建，TestPyPI + PyPI 双 token 现成；**无需注册**）。
 - 流程：`twine check` 双 PASSED → TestPyPI 上传 → 全新 venv 从 TestPyPI 装（注意：TestPyPI 缺新版依赖，须 `--extra-index-url https://pypi.org/simple`）→ 中立目录试玩通过 → PyPI 上传 → 匿名核对（JSON 元数据五项正确、项目页 200）→ 全新 venv `pip install dse-core` 试玩通过（exit 0）。
