@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dse-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "字典场景引擎（Dictionary Scene Engine）—— 场景即字典，能力即插件"
 readme = "README.md"
 requires-python = ">=3.10"
