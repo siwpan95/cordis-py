@@ -1,0 +1,24 @@
+pack: { id: dlg-demo, name: 对话演示, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 对话
+    text: 一个老者坐在路边。
+    mode: dialogue
+    dialogue:
+      npc: 老者
+      notes: 2
+      onEnd: end
+      topics:
+        - id: t1
+          name: 天气
+          reply: 今天天气不错。
+          effect: { 'flags.askedWeather': true }
+        - id: t2
+          name: 往事
+          reply: 往事如烟。
+        - id: t3
+          name: 秘密
+          reply: 秘密就是没有秘密。
+  end:
+    title: 结束
+    text: 对话结束。问过天气了吗：{flags.askedWeather}。

@@ -62,8 +62,8 @@ dse_core/
 ├── sdk.py         # 编程式门面（create_engine / play / inspect_project）
 ├── cli.py         # 命令行 dse：play / scenes / info / check / packs / saves / doctor / new
 └── plugins/       # 内核层 scenes/state/console_io/engine
-                   # 能力层 combat
-                   # 系统层 save/save-migrate/achievements/i18n（P2）
+                   # 能力层 combat/trade/diary/dialogue（各接管一种 scene.mode）
+                   # 系统层 save/save-migrate/achievements/i18n
 ```
 
 插件用声明式依赖组装，引擎零改动即可扩展：
@@ -90,7 +90,7 @@ class MyPlugin(Service):
 ## 与 Node 版的关系
 
 - Node 版持续维护；本仓库是**移植版**，内容格式不互通（YAML ↔ ESM）。
-- 移植路线图：**P1 可发布最小引擎 ✅ → P2 系统层与完整 CLI ✅ → P3 能力层（trade/dialogue/diary）→ P4 表现层（sound/hot-reload）+ 内容迁移工具**。详见 [PLAN.md](PLAN.md)。
+- 移植路线图：**P1 可发布最小引擎 ✅ → P2 系统层与完整 CLI ✅ → P3 能力层 ✅（代码完成待发版）→ P4 表现层（sound/hot-reload）+ 内容迁移工具**。详见 [PLAN.md](PLAN.md)。
 - **已知边界**：内容用了某模式但没装对应插件时，引擎**响亮报错**（而非 Node 版的静默回退）——`dse doctor` 可静态交叉核对。
 
 ## 安全模型

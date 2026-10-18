@@ -1,0 +1,14 @@
+pack: { id: diary-demo, name: 札记演示, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 夜读
+    text: 翻开札记，目录在下面。
+    mode: diary
+    diary: { onExit: hall }
+  hall:
+    title: 厅中
+    text: 你有 {gold} 金。
+    onEnter: { 'flags.visits': +1 }
+    choices:
+      - text: 去夜读
+        goto: start

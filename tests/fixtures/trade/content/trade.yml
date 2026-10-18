@@ -1,0 +1,10 @@
+pack: { id: trade-demo, name: 经营演示, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 集市
+    text: 你有 {gold} 金。
+    mode: trade
+    trade: { name: 集市, days: 2, onEnd: end }
+  end:
+    title: 收市
+    text: 净赚 {tradeProfit} 金。

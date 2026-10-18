@@ -19,6 +19,7 @@ import math
 import random
 
 from ..runtime import Service
+from .commands import is_global_command
 
 DEFAULT_FORMULA = {
     "variance": 0.2,      # 伤害随机波动 ±20%
@@ -27,9 +28,6 @@ DEFAULT_FORMULA = {
     "defendCut": 0.5,     # 防御姿态减伤 50%
     "fleeChance": 0.45,   # 逃跑成功率
 }
-
-# 战斗中放行给引擎处理的全局命令（stats / quit 等）
-_GLOBAL_COMMANDS = {"help", "?", "stats", "status", "quit", "exit"}
 
 
 def _round_half_up(x: float) -> int:
@@ -152,8 +150,8 @@ class CombatService(Service):
             self.ctx.io.print("  战斗指令: a 攻击 | d 防御（减伤 50%）| r 逃跑 | help 帮助 | quit 退出")
             self.render()
             return {"type": "noop"}
-        if command in _GLOBAL_COMMANDS:
-            return None  # 全局命令放行（stats / quit 等由引擎处理）
+        if is_global_command(line):
+            return None  # 全局命令放行（save/stats/quit 等由后续监听器或引擎处理）
         # 其余输入维持拦截，但明确拒绝（不静默吞掉）
         self.ctx.io.print(f"  战斗中不可用：{line.strip() or '(空)'}（战斗指令: a 攻击 | d 防御 | r 逃跑 | help 帮助 | quit 退出）")
         self.render()

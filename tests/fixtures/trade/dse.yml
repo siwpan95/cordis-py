@@ -1,0 +1,17 @@
+- id: scenes
+  config:
+    packs: [./content/trade.yml]
+- id: state
+  config:
+    initial: { name: 测试员, hp: 10, gold: 20, items: {}, stock: {}, tradeDay: null, tradeBaseGold: null, tradeProfit: 0 }
+- id: io
+- id: engine
+  config:
+    entry: start
+    prompt: '> '
+- id: trade
+  config:
+    goods:
+      tea: { name: 茶, buy: 8 }
+    schedule:
+      - [12, 10]

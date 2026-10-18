@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**P1+P2 已完成**（P1 已发布 PyPI 0.1.0；P2 于 2026-10-18 完成，88 项测试全绿，待发 0.2.0）· P3 待排
+> 状态：**P1/P2/P3 代码完成**（P1 已发 0.1.0；P2 已发 0.2.0；P3 待发 0.3.0，待全哥放行）· P4 待排
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -96,9 +96,14 @@
   测试即护栏；③ 测试夹具 wiring 要调 setup()（table 在 setup 里建）， stub io 会被
   `ctx.io.print` 教做人。
 
-### P3 · 能力层（玩法插件）
-- combat / trade / diary / dialogue + 数值配置直译（武器表 / 敌人字典 / 商品行情表）
-- traverse + coverage 测试直译（结局覆盖矩阵门禁保留）
+### P3 · 能力层（玩法插件）—— ✅ 代码完成（2026-10-18，待发版）
+
+- trade：天数循环 + 库存买卖 + 确定性行情（buy/sell/next/info；收市结算 tradeProfit）
+- diary：只读回溯（⚠️ 核心约束——重读绝不 goto/不执行 onEnter，已读 ∩ 字典存在才可重读）
+- dialogue：话题询问 + 注意点预算（问满强制结束；已问去重；effect 数据驱动）
+- 全局命令名单收敛到 plugins/commands.py（combat/trade/diary/dialogue 共用）
+- **测试**：97 项全绿（P1 58 + P2 31 + P3 8）；经营全周期逐金可算、对话去重/预算、
+  重读零状态变更（与正规进入场景的 onEnter 对照）均有断言
 
 ### P4 · 表现/开发层与生态
 - sound（wave 合成）/ hot-reload；Node 内容包 → YAML 迁移工具；文档
