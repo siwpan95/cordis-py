@@ -32,7 +32,7 @@ from .plugins.scenes import SceneService
 from .plugins.state import StateService
 from .runtime import Context, Service
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
