@@ -21,9 +21,13 @@ from pathlib import Path
 
 from . import graph, loader, manifest, modes
 from .loader import load_project
+from .plugins.achievements import AchievementsService
 from .plugins.combat import CombatService
 from .plugins.console_io import ConsoleIO
 from .plugins.engine import EngineService
+from .plugins.i18n import I18nService
+from .plugins.save import SaveService
+from .plugins.save_migrate import SaveMigrateService
 from .plugins.scenes import SceneService
 from .plugins.state import StateService
 from .runtime import Context, Service
@@ -49,12 +53,19 @@ __all__ = [
 ]
 
 # 内置插件表：dse.yml 里写 id 即可；第三方插件写「模块.类名」全路径
+# 内核层：scenes / state / io / engine
+# 能力层：combat（P1 参考实现）
+# 系统层：save / save-migrate / achievements / i18n（P2）
 _BUILTIN_PLUGINS = {
     "scenes": SceneService,
     "state": StateService,
     "io": ConsoleIO,
     "engine": EngineService,
     "combat": CombatService,
+    "save": SaveService,
+    "save-migrate": SaveMigrateService,
+    "achievements": AchievementsService,
+    "i18n": I18nService,
 }
 
 
