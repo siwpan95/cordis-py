@@ -95,10 +95,10 @@
 
 ## 7. 发布路径（PyPI）
 
-- 账号：全哥注册 pypi.org + TestPyPI。PyPI 无 npm 那套强制 2FA，**API token 即可发布**（granular token 可限定单项目）。
+- 账号：全哥注册 pypi.org + TestPyPI。PyPI 无 npm 那套强制 2FA，**API token 即可发布**（首发新项目只能建账号级/非 scoped token；项目上线后才能建 project-scoped）。
 - 构建：`python -m build`（sdist + wheel）；上传用 `twine`。
-- **TestPyPI 先行**验证，再正式 PyPI。发布动作到点先问放行（铁律 7）。
-- 工具链装在 workbuddy 托管 Python 3.13 venv，不污染系统环境。
+- **本地验收已完成**（2026-10-18）：58 测试全绿；wheel 装入全新 venv、从中立目录试玩通过 —— TestPyPI 能验的检查点本地已全覆盖，建议直发 PyPI（若全哥要 TestPyPI 仪式也可）。
+- **待全哥提供 token**：`TWINE_USERNAME=__token__ TWINE_PASSWORD=<tok> twine upload dist/*`（环境变量传递、不落盘）；发布后匿名核对 `pypi.org/pypi/dse-core/json` + 干净 venv 安装试玩。
 
 ## 8. 工作量实话实说
 
