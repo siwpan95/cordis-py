@@ -53,7 +53,7 @@ dse = "dse_core.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-dse_core = ["schema/*.json"]
+dse_core = ["schema/*.json", "example/dse.yml", "example/content/*.yml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

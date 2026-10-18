@@ -59,8 +59,8 @@ _BUILTIN_PLUGINS = {
 
 
 def engine_root() -> Path:
-    """引擎自身目录（含 dse.yml 与 content/ 的默认工程）。"""
-    return Path(__file__).resolve().parent.parent
+    """引擎自带示例工程目录（随包发布：dse.yml + content/，pip 安装后即可玩）。"""
+    return Path(__file__).resolve().parent / "example"
 
 
 def _resolve_plugin(name: str) -> type[Service]:

@@ -4,17 +4,19 @@ from pathlib import Path
 
 import pytest
 
+import dse_core
 from dse_core.loader import load_pack_file, load_project, scene_chars
 from dse_core.plugins.scenes import SceneService, find_dangling, validate_scenes
 from dse_core.runtime import Context
 from dse_core.schema import validate_pack
 
-ENGINE_ROOT = Path(__file__).resolve().parent.parent
+# 包内自带示例工程（随 wheel 发布）
+EXAMPLE_ROOT = Path(dse_core.__file__).resolve().parent / "example"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def test_load_engine_project():
-    project = load_project(ENGINE_ROOT)
+    project = load_project(EXAMPLE_ROOT)
     assert project.entry == "start"
     assert "wolf-fight" in project.dict
     assert project.dict["wolf-fight"]["mode"] == "battle"
@@ -49,7 +51,7 @@ def test_load_pack_file_rejects_bad_shape(tmp_path):
 
 
 def test_scene_service_rebuild():
-    ctx = Context(root=ENGINE_ROOT, quiet=True)
+    ctx = Context(root=EXAMPLE_ROOT, quiet=True)
     service = SceneService(ctx, {"packs": ["./content/starter.yml"]})
     service.setup()
     assert service.size == 7
@@ -60,7 +62,7 @@ def test_scene_service_rebuild():
 
 
 def test_rebuild_double_buffer_keeps_old_dict():
-    ctx = Context(root=ENGINE_ROOT, quiet=True)
+    ctx = Context(root=EXAMPLE_ROOT, quiet=True)
     service = SceneService(ctx, {"packs": ["./content/starter.yml"]})
     service.setup()
     # 注入一个带悬空跳转的包 → rebuild 必须炸，且旧字典毫发无损
@@ -73,7 +75,7 @@ def test_rebuild_double_buffer_keeps_old_dict():
 
 
 def test_path_whitelist_rejects_outside(tmp_path):
-    ctx = Context(root=ENGINE_ROOT, quiet=True)
+    ctx = Context(root=EXAMPLE_ROOT, quiet=True)
     service = SceneService(ctx, {"packs": []})
     with pytest.raises(ValueError, match="越出工程目录"):
         service.import_pack("../../etc/passwd")

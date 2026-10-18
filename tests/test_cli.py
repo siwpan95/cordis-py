@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 
+import dse_core
 from dse_core.cli import main
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-ENGINE_ROOT = Path(__file__).resolve().parent.parent
+EXAMPLE_ROOT = Path(dse_core.__file__).resolve().parent / "example"
 
 
 def test_version(capsys):
@@ -53,7 +54,7 @@ def test_check_finds_missing_text(tmp_path, capsys):
 
 
 def test_scenes_lists_all(capsys):
-    code = main(["scenes", "--root", str(ENGINE_ROOT)])
+    code = main(["scenes", "--root", str(EXAMPLE_ROOT)])
     assert code == 0
     out = capsys.readouterr().out
     assert "wolf-fight" in out
@@ -61,7 +62,7 @@ def test_scenes_lists_all(capsys):
 
 
 def test_info_reports_endings(capsys):
-    code = main(["info", "--root", str(ENGINE_ROOT)])
+    code = main(["info", "--root", str(EXAMPLE_ROOT)])
     assert code == 0
     out = capsys.readouterr().out
     assert "结局: 3" in out

@@ -28,6 +28,18 @@ def _print_banner() -> None:
     print(f"╚{border}╝")
 
 
+def _resolve_root(root: str | None) -> str:
+    """未指定 --root 时：当前目录有 dse.yml 就用它，否则用包内自带示例工程。"""
+    if root is not None:
+        return root
+    cwd = Path.cwd()
+    if (cwd / "dse.yml").is_file():
+        return str(cwd)
+    from .sdk import engine_root
+
+    return str(engine_root())
+
+
 def _cmd_play(args) -> int:
     if args.input:
         os.environ["DSE_INPUT"] = args.input
@@ -108,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_play = sub.add_parser("play", help="开始游戏")
-    p_play.add_argument("--root", default=".", help="工程根目录（含 dse.yml），缺省当前目录")
+    p_play.add_argument("--root", default=None, help="工程根目录（含 dse.yml）；缺省：当前目录有则用，否则用包内示例")
     p_play.add_argument("--entry", help="覆盖入口场景 ID")
     p_play.add_argument("--input", help='脚本输入序列，逗号分隔（如 "1,1,a,a"），用尽自动退出')
     p_play.add_argument("--banner", action="store_true", help="打印启动横幅")
@@ -120,10 +132,11 @@ def main(argv: list[str] | None = None) -> int:
         ("check", "校验内容（Schema/悬空），有问题退出码 1", _cmd_check),
     ):
         p = sub.add_parser(name, help=help_text)
-        p.add_argument("--root", default=".", help="工程根目录（含 dse.yml），缺省当前目录")
+        p.add_argument("--root", default=None, help="工程根目录（含 dse.yml）；缺省：当前目录有则用，否则用包内示例")
         p.set_defaults(func=func)
 
     args = parser.parse_args(argv)
+    args.root = _resolve_root(args.root)
     try:
         return args.func(args)
     except (FileNotFoundError, ValueError, KeyError) as exc:
