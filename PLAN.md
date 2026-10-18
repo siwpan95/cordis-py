@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**P1 已完成**（2026-10-17，58 项测试全绿，已推送分支 `p1-core-engine`）· P2 待放行
+> 状态：**P1 已完成并发布 PyPI 0.1.0**（2026-10-18）· P2 待排
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -30,7 +30,7 @@
 |---|---|---|
 | 本地目录 | `G:\repos\cordis-py` | 本计划落地点 |
 | Gitee 仓库 | `cordis-py`（public + MIT） | ✅ 已建仓推送（分支 `p1-core-engine`，匿名可 clone） |
-| PyPI 发行名 | **`dse-core`** | ✅ 已核实可用（`pypi.org/pypi/dse-core` → 404） |
+| PyPI 发行名 | **`dse-core`** | ✅ **已发布 0.1.0**（2026-10-18，pypi.org/project/dse-core） |
 | import 名 | `dse_core` | 与品牌、README 示例一致 |
 | CLI 命令 | `dse` | 与 Node 版一致 |
 | 备选 PyPI 名 | `cordis-py` | ✅ 已核实可用；想统一品牌可换（拍板项 1） |
@@ -99,6 +99,12 @@
 - 构建：`python -m build`（sdist + wheel）；上传用 `twine`。
 - **本地验收已完成**（2026-10-18）：58 测试全绿；wheel 装入全新 venv、从中立目录试玩通过 —— TestPyPI 能验的检查点本地已全覆盖，建议直发 PyPI（若全哥要 TestPyPI 仪式也可）。
 - **待全哥提供 token**：`TWINE_USERNAME=__token__ TWINE_PASSWORD=<tok> twine upload dist/*`（环境变量传递、不落盘）；发布后匿名核对 `pypi.org/pypi/dse-core/json` + 干净 venv 安装试玩。
+
+## 7.1 发布实录（2026-10-18）
+
+- token 来源：全哥指路 `G:\凭据管理器\私人令牌.txt`（siwpan 账号 9 月已建，TestPyPI + PyPI 双 token 现成；**无需注册**）。
+- 流程：`twine check` 双 PASSED → TestPyPI 上传 → 全新 venv 从 TestPyPI 装（注意：TestPyPI 缺新版依赖，须 `--extra-index-url https://pypi.org/simple`）→ 中立目录试玩通过 → PyPI 上传 → 匿名核对（JSON 元数据五项正确、项目页 200）→ 全新 venv `pip install dse-core` 试玩通过（exit 0）。
+- 小插曲：发布后 simple 索引有约 1 分钟传播延迟，`pip install` 一度 404，重试即成功——**发布后别急着判死刑**。
 
 ## 8. 工作量实话实说
 
