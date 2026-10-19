@@ -21,10 +21,28 @@
         "if": { "type": "string", "description": "显示条件表达式（基于玩家状态求值），缺省恒真" },
         "do": { "$ref": "#/definitions/Effects", "description": "选中后执行的效果" },
         "goto": {
-          "description": "跳转目标。普通场景 ID；特殊目标 @restart / @loop:<场景ID>",
+          "description": "跳转目标。普通场景 ID；特殊目标 @restart / @loop:<场景ID>；或加权随机分支数组 [{to, weight}]（weight 缺省 1，须为正数）",
           "anyOf": [
             { "type": "string", "pattern": "^@(restart|loop:[A-Za-z0-9._-]+)$" },
-            { "type": "string", "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*(\\.[a-z0-9]+([-_][a-z0-9]+)*)*$" }
+            { "type": "string", "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*(\\.[a-z0-9]+([-_][a-z0-9]+)*)*$" },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["to"],
+                "additionalProperties": false,
+                "properties": {
+                  "to": {
+                    "anyOf": [
+                      { "type": "string", "pattern": "^@(restart|loop:[A-Za-z0-9._-]+)$" },
+                      { "type": "string", "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*(\\.[a-z0-9]+([-_][a-z0-9]+)*)*$" }
+                    ]
+                  },
+                  "weight": { "type": "number", "exclusiveMinimum": 0, "default": 1 }
+                }
+              }
+            }
           ]
         }
       }
@@ -89,7 +107,21 @@
       "properties": {
         "title": { "type": "string", "description": "场景标题，支持插值；缺省用场景 ID" },
         "text": { "type": "string", "description": "正文，支持 {path} 状态插值" },
+        "extraText": {
+          "type": "array",
+          "description": "条件文本段（Ink 条件段的 YAML 化）：逐项求值 if（缺省恒真），为真才拼接到正文后，段文本同样支持插值",
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "additionalProperties": false,
+            "properties": {
+              "text": { "type": "string" },
+              "if": { "type": "string", "description": "显示条件表达式，缺省恒真" }
+            }
+          }
+        },
         "onEnter": { "$ref": "#/definitions/Effects", "description": "进入场景时执行的效果" },
+        "onExit": { "$ref": "#/definitions/Effects", "description": "离开场景时执行的效果（goto 流转时结算，先于新场景 onEnter）" },
         "mode": {
           "type": "string",
           "description": "normal = 引擎渲染选项并判定结局；其他模式由能力插件接管",

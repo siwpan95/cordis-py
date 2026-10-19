@@ -1,0 +1,11 @@
+- id: scenes
+  config:
+    packs: [./content/narrative.yml]
+- id: state
+  config:
+    initial: { name: 旅人, gold: 3, flags: { met_wolf: false }, visits: 0 }
+- id: io
+- id: engine
+  config:
+    entry: start
+    seed: 42

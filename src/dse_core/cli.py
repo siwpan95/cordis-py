@@ -346,6 +346,41 @@ def _cmd_doctor(args) -> int:
         if plugin not in installed:
             problems.append(f"模式 {mode} 需要插件 {plugin}，但 dse.yml 未安装")
 
+    # 插件依赖拓扑巡检（静态解析 inject，不启动引擎；对齐 Cordis fiber 巡检）
+    from .sdk import _resolve_plugin
+
+    plugin_ids: list[str] = []
+    for pid in ["scenes", "state", "io", "engine"] + [
+        item["id"] for item in (manifest if isinstance(manifest, list) else [])
+        if isinstance(item, dict) and item.get("id")
+    ]:
+        if pid not in plugin_ids:
+            plugin_ids.append(pid)
+
+    classes: dict[str, type] = {}
+    for pid in plugin_ids:
+        try:
+            classes[pid] = _resolve_plugin(pid)
+        except Exception as exc:  # noqa: BLE001
+            problems.append(f"插件 {pid} 无法解析: {exc}")
+    for pid, cls in classes.items():
+        for dep in cls.inject:
+            if dep not in classes:
+                problems.append(f"插件 {pid} 依赖未加载的服务: {dep}")
+
+    ordered: list[str] = []
+    remaining = dict(classes)
+    while remaining:
+        ready = [p for p, c in remaining.items() if all(d in ordered for d in c.inject)]
+        if not ready:
+            problems.append(f"插件依赖存在循环: {sorted(remaining)}")
+            break
+        for p in ready:
+            ordered.append(p)
+            del remaining[p]
+    if ordered:
+        print(f"插件启动顺序（拓扑序）: {' → '.join(ordered)}")
+
     if problems:
         print(f"[doctor] 发现 {len(problems)} 个问题:", file=sys.stderr)
         for p in problems:
@@ -401,6 +436,78 @@ def _cmd_new(args) -> int:
     return 0
 
 
+def _cmd_graph(args) -> int:
+    """导出场景图：Graphviz DOT 或 Mermaid（Twine passage map 的 CLI 对应物）。"""
+    data = load_dict(args.root)
+    scenes, entry = data["dict"], data["entry"]
+    out = graph.to_mermaid(scenes, entry) if args.format == "mermaid" else graph.to_dot(scenes, entry)
+    if args.output:
+        Path(args.output).write_text(out, encoding="utf-8")
+        print(f"已导出 {args.format} 场景图: {args.output}（{len(scenes)} 场景）")
+    else:
+        print(out, end="")
+    return 0
+
+
+def _cmd_test(args) -> int:
+    """脚本化回归：跑输入序列，断言最终场景与状态表达式（CI 友好）。"""
+    import random as _random
+
+    from .sdk import create_engine
+
+    os.environ["DSE_INPUT"] = args.script
+    try:
+        ctx = create_engine(args.root, entry=args.entry)
+        engine = ctx.services["engine"]
+        state = ctx.services["state"]  # 先抓引用：engine 结束后 ctx.dispose() 会清空服务表
+        if args.seed is not None:
+            engine.rng = _random.Random(args.seed)
+        engine.start()
+    finally:
+        os.environ.pop("DSE_INPUT", None)  # 不残留进程环境（pytest 同进程连跑）
+
+    failures: list[str] = []
+    if args.expect_scene is not None and engine.current != args.expect_scene:
+        failures.append(f"最终场景应为 {args.expect_scene}，实际 {engine.current}")
+    for expr in args.expect or []:
+        if not state.check(expr):
+            failures.append(f'状态断言失败: "{expr}"')
+    if args.expect_exit is not None and engine.exit_code != args.expect_exit:
+        failures.append(f"退出码应为 {args.expect_exit}，实际 {engine.exit_code}")
+
+    if failures:
+        for f in failures:
+            print(f"[test] ✗ {f}", file=sys.stderr)
+        return 1
+    print(f"[test] ✓ 通过（剧本 {len(args.script.split(','))} 步，最终场景 {engine.current}，退出码 {engine.exit_code}）")
+    return 0
+
+
+def _cmd_export_html(args) -> int:
+    """导出单文件 HTML 播放器（normal 模式工程；mode 场景响亮警告）。"""
+    from .export_html import find_unsupported, render_html
+
+    data = load_dict(args.root)
+    scenes, entry = data["dict"], data["entry"]
+
+    # 取 state 初始值（dse.yml 里 state 插件的 config.initial）
+    manifest = load_yaml(Path(data["root"]) / "dse.yml")
+    initial: dict = {}
+    for item in (manifest if isinstance(manifest, list) else []):
+        if isinstance(item, dict) and item.get("id") == "state":
+            initial = (item.get("config") or {}).get("initial") or {}
+
+    warnings = find_unsupported(scenes)
+    for w in warnings:
+        print(f"[export-html] ⚠ {w}", file=sys.stderr)
+
+    out_path = Path(args.output or f"{Path(data['root']).name}.html")
+    title = args.title or Path(data["root"]).name
+    out_path.write_text(render_html(scenes, entry, initial, title=title), encoding="utf-8")
+    print(f"已导出单文件播放器: {out_path}（{len(scenes)} 场景，警告 {len(warnings)} 条）")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dse",
@@ -434,6 +541,28 @@ def main(argv: list[str] | None = None) -> int:
     p_new.add_argument("--title", help="展示名（缺省同包名）")
     p_new.add_argument("--root", default=None, help="工程根目录；缺省当前目录有 dse.yml 则用，否则包内示例")
     p_new.set_defaults(func=_cmd_new)
+
+    p_graph = sub.add_parser("graph", help="导出场景图（DOT / Mermaid）")
+    p_graph.add_argument("--format", choices=["dot", "mermaid"], default="mermaid", help="导出格式（缺省 mermaid）")
+    p_graph.add_argument("-o", "--output", help="写入文件；缺省打印到 stdout")
+    p_graph.add_argument("--root", default=None, help="工程根目录")
+    p_graph.set_defaults(func=_cmd_graph)
+
+    p_test = sub.add_parser("test", help="脚本化回归：跑输入序列并断言结果（CI 友好）")
+    p_test.add_argument("--script", required=True, help='输入序列，逗号分隔（如 "1,1,a"）')
+    p_test.add_argument("--expect-scene", help="断言最终场景 ID")
+    p_test.add_argument("--expect", action="append", help="断言状态表达式（可多次，AST 白名单求值）")
+    p_test.add_argument("--expect-exit", type=int, help="断言退出码")
+    p_test.add_argument("--seed", type=int, help="覆盖加权随机种子（复现随机分支）")
+    p_test.add_argument("--entry", help="覆盖入口场景 ID")
+    p_test.add_argument("--root", default=None, help="工程根目录")
+    p_test.set_defaults(func=_cmd_test)
+
+    p_html = sub.add_parser("export-html", help="导出单文件 HTML 播放器（normal 模式工程）")
+    p_html.add_argument("-o", "--output", help="输出文件（缺省 <工程名>.html）")
+    p_html.add_argument("--title", help="页面标题（缺省取工程目录名）")
+    p_html.add_argument("--root", default=None, help="工程根目录")
+    p_html.set_defaults(func=_cmd_export_html)
 
     args = parser.parse_args(argv)
     args.root = _resolve_root(args.root)

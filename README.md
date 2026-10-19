@@ -16,6 +16,9 @@ dse check                 # 校验内容（悬空跳转等），有问题退出�
 dse doctor                # 体检 + 内容模式 vs 已装插件交叉核对
 dse saves                 # 离线列出存档位
 dse new my-pack --template hub   # 脚手架生成 YAML 内容包并挂进 dse.yml
+dse graph --format mermaid       # P7：导出场景图（Mermaid / DOT，Twine 图谱的 CLI 对应物）
+dse test --script "1,1,a" --expect-scene end-rich --expect "gold >= 10"   # P7：脚本化回归（CI 友好）
+dse export-html -o game.html     # P7：导出单文件 HTML 播放器（normal 模式工程，双击即玩）
 ```
 
 自带示例工程随包发布（`src/dse_core/example/`）：在含 `dse.yml` 的目录里
@@ -48,6 +51,27 @@ scenes:
     battle: { enemy: wolf, onWin: forest-win, onLose: forest-lose, onFlee: start }
 ```
 
+P6 叙事增强（对标 Ink/Twine）：
+
+```yaml
+scenes:
+  crossroad:
+    text: '两条路摆在你面前。'
+    onEnter: { visits: +1 }             # 进入时执行（已有）
+    onExit: { gold: +10 }               # P6：离开场景时结算，先于新场景 onEnter
+    extraText:                          # P6：条件文本段，求值为真才拼接
+      - if: 'flags.met_wolf'
+        text: '你认得林间那道爪痕。'
+    choices:
+      - text: 掷命运硬币                 # P6：加权随机跳转
+        goto:
+          - { to: lucky, weight: 1 }
+          - { to: unlucky, weight: 3 }
+```
+
+加权随机的确定性来源：`dse.yml` 里 `engine.config.seed` 固定后结果可复现
+（测试 / CI 友好）；缺省真随机。rng 状态不入存档，读档后重新洗牌。
+
 ## 架构
 
 ```
@@ -75,9 +99,22 @@ from dse_core.runtime import Service
 class MyPlugin(Service):
     name = "my-plugin"
     inject = ("state", "io")          # 等价于 Cordis 的 static inject
+    config_schema = {                  # P5：配置校验（required/properties，缺键响亮报错）
+        "properties": {"level": {"type": "int", "default": 1}}
+    }
     def setup(self):
-        self.ctx.on("scene/enter", lambda scene_id, scene: ...)
+        self.on("scene/enter", lambda scene_id, scene: ...)  # P5：随 dispose 自动摘除
+        self.effect(lambda: open_resource())   # P5：返回的 disposer 随 dispose 自动回滚
 ```
+
+**运行时增强**（P5，对齐 Cordis 4.0）：
+
+- `ctx.effect()` / `self.on()` —— 可逆副作用原语：插件卸载时 disposer 自动逆序
+  回滚、监听器自动摘除（热重载不再累积残留）
+- fiber 生命周期状态机（PENDING → LOADING → ACTIVE / FAILED → DISPOSED），
+  `ctx.inspect()` 快照巡检；`dse doctor` 静态输出插件拓扑启动顺序
+- 事件分发五模式齐备：`emit`（观察）/ `parallel`（容错扇出）/ `serial`
+  （遇错中断）/ `bail`（委托）/ `pipeline`（即 waterfall，返回值链）
 
 **系统层插件**（P2，`dse.yml` 里按 id 启用）：
 

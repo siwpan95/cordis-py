@@ -21,16 +21,22 @@ def is_ending(scene) -> bool:
 
 
 def edges_of(scene_id: str, scene) -> list[dict]:
-    """单个场景的全部出边（选项 goto + 模式流转边）。"""
+    """单个场景的全部出边（选项 goto + 模式流转边；加权 goto 逐项展开）。"""
     out: list[dict] = []
     for choice in (scene or {}).get("choices") or []:
-        raw = str(choice.get("goto") or "")
-        if not raw:
-            continue
-        target = resolve_goto(raw)
-        if not target or target.startswith("@"):
-            continue  # @restart 不参与可达
-        out.append({"from": scene_id, "to": target, "kind": "choice", "raw": raw})
+        goto = choice.get("goto")
+        raws: list[str] = []
+        if isinstance(goto, list):  # 加权随机跳转：每个分支都是一条出边
+            raws = [str(item.get("to") or "") for item in goto if isinstance(item, dict)]
+        elif goto:
+            raws = [str(goto)]
+        for raw in raws:
+            if not raw:
+                continue
+            target = resolve_goto(raw)
+            if not target or target.startswith("@"):
+                continue  # @restart 不参与可达
+            out.append({"from": scene_id, "to": target, "kind": "choice", "raw": raw})
     mode = (scene or {}).get("mode") or "normal"
     block = (scene or {}).get(mode) or {}
     for key in mode_edges(mode):
@@ -77,15 +83,21 @@ def analyze(scenes: dict, entry: str) -> dict:
             in_degree[edge["to"]] = in_degree.get(edge["to"], 0) + 1
             if edge["to"] not in scenes:
                 dangling.append(edge)
-        # 特殊目标自身的合法性（@loop: 目标必须存在）
+        # 特殊目标自身的合法性（@loop: 目标必须存在）；加权 goto 逐项检查
         for choice in (scene or {}).get("choices") or []:
-            raw = str(choice.get("goto") or "")
-            if raw.startswith("@") and not is_special_goto(raw):
-                dangling.append({"from": scene_id, "to": raw, "kind": "special", "raw": raw})
-            elif raw.startswith("@loop:"):
-                target = resolve_goto(raw)
-                if target not in scenes:
-                    dangling.append({"from": scene_id, "to": target, "kind": "loop", "raw": raw})
+            goto = choice.get("goto")
+            raws = (
+                [str(item.get("to") or "") for item in goto if isinstance(item, dict)]
+                if isinstance(goto, list)
+                else [str(goto or "")]
+            )
+            for raw in raws:
+                if raw.startswith("@") and not is_special_goto(raw):
+                    dangling.append({"from": scene_id, "to": raw, "kind": "special", "raw": raw})
+                elif raw.startswith("@loop:"):
+                    target = resolve_goto(raw)
+                    if target not in scenes:
+                        dangling.append({"from": scene_id, "to": target, "kind": "loop", "raw": raw})
 
     unreachable = [sid for sid in scenes if sid not in reachable]
     return {
@@ -123,3 +135,59 @@ def shortest_path(scenes: dict, entry: str, target_id: str) -> list[str] | None:
     while path[0] != entry:
         path.insert(0, prev.get(path[0]))
     return path
+
+
+# ------------------------------------------------------------ 可视化导出（P7）
+
+def _scene_label(scene_id: str, scene) -> str:
+    title = (scene or {}).get("title") or scene_id
+    return str(title).replace('"', "'")
+
+
+def to_dot(scenes: dict, entry: str) -> str:
+    """导出 Graphviz DOT（结局双圈、入口加粗、mode 场景方框）。"""
+    lines = ["digraph scenes {", "  rankdir=LR;", '  node [shape=ellipse];']
+    for scene_id, scene in scenes.items():
+        mode = (scene or {}).get("mode") or "normal"
+        attrs = [f'label="{_scene_label(scene_id, scene)}"']
+        if is_ending(scene):
+            attrs.append("shape=doublecircle")
+        elif mode != "normal":
+            attrs.append("shape=box")
+        if scene_id == entry:
+            attrs.append("penwidth=2")
+        lines.append(f'  "{scene_id}" [{", ".join(attrs)}];')
+    for scene_id, scene in scenes.items():
+        for edge in edges_of(scene_id, scene):
+            style = "dashed" if edge["kind"] == "mode" else "solid"
+            lines.append(f'  "{edge["from"]}" -> "{edge["to"]}" [style={style}];')
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def to_mermaid(scenes: dict, entry: str) -> str:
+    """导出 Mermaid flowchart（结局双圈 (( ))、mode 场景方框、mode 边虚线）。
+
+    场景 id 里的 ``-`` / ``.`` 会被 Mermaid 误解析为连线语法，节点 id 统一
+    替换为安全形式（label 保留原 id）。
+    """
+    def nid(scene_id: str) -> str:
+        return "n_" + "".join(c if c.isalnum() or c == "_" else "_" for c in scene_id)
+
+    def shape(scene_id: str, scene) -> str:
+        label = _scene_label(scene_id, scene)
+        mode = (scene or {}).get("mode") or "normal"
+        if is_ending(scene):
+            return f'{nid(scene_id)}(("{label}"))'
+        if mode != "normal":
+            return f'{nid(scene_id)}["{label}"]'
+        return f'{nid(scene_id)}("{label}")'
+
+    lines = ["flowchart LR"]
+    for scene_id, scene in scenes.items():
+        lines.append(f"  {shape(scene_id, scene)}")
+    for scene_id, scene in scenes.items():
+        for edge in edges_of(scene_id, scene):
+            arrow = "-.->" if edge["kind"] == "mode" else "-->"
+            lines.append(f"  {nid(edge['from'])} {arrow} {nid(edge['to'])}")
+    return "\n".join(lines) + "\n"

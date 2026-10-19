@@ -53,10 +53,10 @@ class TradeService(Service):
         self.active: dict | None = None
 
     def setup(self) -> None:
-        self.ctx.on("scene/mode", self._on_scene_mode)
-        self.ctx.on("engine/command", self._on_command)
-        self.ctx.on("scene/rendered", self._on_scene_rendered)
-        self.ctx.on("scene/leave", self._on_scene_leave)
+        self.on("scene/mode", self._on_scene_mode)
+        self.on("engine/command", self._on_command)
+        self.on("scene/rendered", self._on_scene_rendered)
+        self.on("scene/leave", self._on_scene_leave)
         self.ctx.info("trade", f"loaded {len(self.ids)} goods over {len(self.schedule[0]) if self.schedule else 0} days")
 
     # ------------------------------------------------------------ 事件钩子

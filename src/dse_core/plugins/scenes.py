@@ -29,12 +29,30 @@ def validate_scenes(pack: dict, source: str = "<inline>") -> list[str]:
             continue
         if not isinstance(scene.get("text"), str):
             errors.append(f"  - {at}: 缺少 text 字段")
+        extra_text = scene.get("extraText")
+        if extra_text is not None:
+            if not isinstance(extra_text, list):
+                errors.append(f"  - {at}: extraText 必须是数组")
+            else:
+                for j, seg in enumerate(extra_text):
+                    if not isinstance(seg, dict) or not isinstance(seg.get("text"), str):
+                        errors.append(f"  - {at}: extraText 第 {j + 1} 段缺少 text")
+        for key in ("onEnter", "onExit"):
+            if key in scene and not isinstance(scene[key], dict):
+                errors.append(f"  - {at}: {key} 必须是效果对象")
         choices = scene.get("choices")
         if choices is not None and not isinstance(choices, list):
             errors.append(f"  - {at}: choices 必须是数组")
         for i, choice in enumerate(choices or []):
             if not isinstance(choice, dict) or not isinstance(choice.get("text"), str):
                 errors.append(f"  - {at}: 第 {i + 1} 个选项缺少 text")
+            goto = choice.get("goto") if isinstance(choice, dict) else None
+            if isinstance(goto, list):
+                for k, item in enumerate(goto):
+                    if not isinstance(item, dict) or not isinstance(item.get("to"), str):
+                        errors.append(f"  - {at}: 第 {i + 1} 个选项的加权跳转第 {k + 1} 项缺少 to")
+                    elif not isinstance(item.get("weight", 1), (int, float)) or item.get("weight", 1) <= 0:
+                        errors.append(f"  - {at}: 第 {i + 1} 个选项的加权跳转第 {k + 1} 项权重必须为正数")
     return errors
 
 
@@ -50,6 +68,15 @@ def find_dangling(scenes: dict) -> list[str]:
             target = choice.get("goto")
             if target is None:
                 dangling.append(f"  - #{scene_id} 第 {i + 1} 个选项缺少 goto（选中后无法流转，会重放 onEnter）")
+                continue
+            # 加权随机跳转：逐项校验 to
+            if isinstance(target, list):
+                for item in target:
+                    to = (item or {}).get("to") if isinstance(item, dict) else None
+                    if not isinstance(to, str):
+                        continue  # 结构问题由 validate_scenes 拦截
+                    if not to.startswith("@") and to not in scenes:
+                        dangling.append(f'  - #{scene_id} 第 {i + 1} 个选项 -> "{to}"（加权分支）')
                 continue
             if not str(target).startswith("@") and target not in scenes:
                 dangling.append(f'  - #{scene_id} 第 {i + 1} 个选项 -> "{target}"')

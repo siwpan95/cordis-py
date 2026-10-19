@@ -34,8 +34,8 @@ class I18nService(Service):
 
     def setup(self) -> None:
         # 文本渲染管道：引擎插值之后、其他装饰之前替换
-        self.ctx.on("text/render", self.translate)
-        self.ctx.on("engine/command", self.handle)
+        self.on("text/render", self.translate)
+        self.on("engine/command", self.handle)
         self.ctx.info("i18n", f"locale={self.locale()}, tables={len(self.tables)}")
 
     # ------------------------------------------------------------ 查表

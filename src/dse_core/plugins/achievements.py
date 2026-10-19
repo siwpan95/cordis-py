@@ -32,9 +32,9 @@ class AchievementsService(Service):
         for item in self.config.get("list") or []:
             self.table[item["id"]] = item
         self.ctx.info("achievements", f"registered {len(self.table)} achievements")
-        self.ctx.on("scene/enter", self._on_scene_enter)
-        self.ctx.on("choice/made", self._on_choice_made)
-        self.ctx.on("engine/command", self._on_command)
+        self.on("scene/enter", self._on_scene_enter)
+        self.on("choice/made", self._on_choice_made)
+        self.on("engine/command", self._on_command)
 
     # ------------------------------------------------------------ 事件与命令
 

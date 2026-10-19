@@ -151,7 +151,7 @@ class SoundService(Service):
         if not self.muted:
             self.dir.mkdir(parents=True, exist_ok=True)
         for event, mapping in HOOKS.items():
-            self.ctx.on(event, self._make_handler(mapping))
+            self.on(event, self._make_handler(mapping))
         if self.muted:
             self.ctx.info("sound", "音效已静音（mute）")
         else:

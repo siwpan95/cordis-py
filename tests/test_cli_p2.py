@@ -52,6 +52,15 @@ def test_doctor_healthy_project(capsys):
     assert "健康" in out
 
 
+def test_doctor_prints_plugin_topology(capsys):
+    # P5：doctor 静态解析 inject 并输出拓扑启动顺序（内核四插件恒在首位）
+    code = main(["doctor", "--root", str(SYS_FIXTURE)])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "插件启动顺序（拓扑序）" in out
+    assert out.index("scenes → state → io → engine") >= 0
+
+
 def test_new_generates_and_registers(tmp_path, capsys):
     (tmp_path / "dse.yml").write_text(
         "- id: scenes\n  config:\n    packs:\n      - ./content/existing.yml\n"

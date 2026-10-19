@@ -42,7 +42,7 @@ class SaveService(Service):
 
     def setup(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
-        self.ctx.on("engine/command", self.handle)
+        self.on("engine/command", self.handle)
         self.ctx.info("save", f"存档目录 {self.dir}")
 
     # ------------------------------------------------------------ 命令

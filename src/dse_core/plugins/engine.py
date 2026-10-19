@@ -21,6 +21,7 @@ ctx.on 扩展，无需改引擎代码）：
 from __future__ import annotations
 
 import os
+import random
 import sys
 import traceback
 
@@ -41,6 +42,10 @@ class EngineService(Service):
         self.current: str | None = None
         self.running = False
         self.exit_code = 0
+        # P6：加权随机跳转的确定性来源（dse.yml engine.seed 可复现；缺省真随机。
+        # rng 状态不入存档 —— 读档后随机序列重新洗牌，属可接受语义）
+        self.rng = random.Random(self.config.get("seed"))
+        self._pending_exit: str | None = None  # 待执行 onExit 的旧场景 id
 
     # ------------------------------------------------------------ 生命周期
 
@@ -59,7 +64,9 @@ class EngineService(Service):
             self.stop(1)
 
     def goto(self, scene_id: str) -> None:
-        """跳转场景（下一轮循环生效）。"""
+        """跳转场景（下一轮循环生效）。记录旧场景供 onExit 挂账。"""
+        if self.current is not None and self.current != scene_id:
+            self._pending_exit = self.current
         self.current = scene_id
 
     def stop(self, exit_code: int = 0) -> None:
@@ -77,6 +84,14 @@ class EngineService(Service):
 
     def run(self) -> None:
         while self.running:
+            # 0. 旧场景 onExit 挂账结算（goto 时记录，此处兑现；先于新场景一切逻辑）
+            if self._pending_exit is not None:
+                old_id, self._pending_exit = self._pending_exit, None
+                old_scene = self.ctx.scenes.get(old_id)
+                if old_scene:
+                    for change in self.ctx.state.apply(old_scene.get("onExit")):
+                        self.ctx.info("engine", f"effect {change['path']}: {change['from']} -> {change['to']}")
+
             scene = self.ctx.scenes.get(self.current)
 
             # 1. 进入场景：离开旧场景 / 应用 onEnter 效果（每进入一次只做一次）
@@ -141,6 +156,8 @@ class EngineService(Service):
                         self.ctx.info("engine", f"effect {change['path']}: {change['from']} -> {change['to']}")
                     self.ctx.emit("choice/made", self.current, choice, effects)
                     goto = choice.get("goto")
+                    if isinstance(goto, list):
+                        goto = self._pick_weighted(goto)
                     if goto is not None:
                         target = str(goto)
                         if target == "@restart":
@@ -166,9 +183,36 @@ class EngineService(Service):
 
     # ------------------------------------------------------------ 渲染与命令
 
+    def _pick_weighted(self, options: list) -> str:
+        """加权随机跳转：从 [{to, weight}] 中按权重抽一个目标。
+
+        内容错误响亮报错（dse check 应已拦截，此处为运行时兜底）。
+        """
+        if not options:
+            raise RuntimeError("加权 goto 列表为空")
+        total = 0.0
+        for item in options:
+            weight = (item or {}).get("weight", 1)
+            if not isinstance(weight, (int, float)) or weight <= 0:
+                raise RuntimeError(f"加权 goto 权重必须为正数: {item!r}")
+            if not isinstance((item or {}).get("to"), str):
+                raise RuntimeError(f"加权 goto 缺少 to: {item!r}")
+            total += weight
+        pick = self.rng.random() * total
+        for item in options:
+            pick -= item.get("weight", 1)
+            if pick < 0:
+                return item["to"]
+        return options[-1]["to"]
+
     def render(self, scene: dict, mode: str, handled: bool) -> list[dict]:
         """渲染当前场景界面（不产生任何状态变更），返回过滤后的选项列表。"""
-        text = self.ctx.state.interpolate(scene.get("text", ""))
+        text = scene.get("text", "")
+        # P6 条件文本段：extraText 逐项求值，为真才拼接（Ink 条件段的 YAML 化）
+        for seg in scene.get("extraText") or []:
+            if isinstance(seg, dict) and self.ctx.state.check(seg.get("if")):
+                text = f"{text}\n{seg.get('text', '')}"
+        text = self.ctx.state.interpolate(text)
         text = self.ctx.pipeline("text/render", text)
 
         # 条件求值过滤选项（每次重绘都重新求值，反映最新状态）

@@ -1,0 +1,33 @@
+pack: { id: narrative, name: 叙事特性演示, version: 0.1.0, entry: start }
+scenes:
+  start:
+    title: 岔路口
+    text: '两条路摆在你面前。'
+    onEnter: { visits: +1 }
+    extraText:
+      - if: 'flags.met_wolf'
+        text: '你认得林间那道爪痕。'
+      - text: '（无条件追加行恒显示）'
+    choices:
+      - text: 进森林
+        goto: forest
+      - text: 掷命运硬币
+        goto:
+          - { to: lucky, weight: 1 }
+          - { to: unlucky, weight: 3 }
+  forest:
+    title: 森林
+    text: '狼群远去。'
+    onEnter: { 'flags.met_wolf': true }
+    onExit: { gold: +10 }
+    choices:
+      - text: 回岔路口
+        goto: start
+  lucky:
+    title: 幸运
+    text: '金币雨！'
+    choices:
+      - { text: 完, goto: '@restart' }
+  unlucky:
+    title: 不幸
+    text: '踩进泥坑。'
