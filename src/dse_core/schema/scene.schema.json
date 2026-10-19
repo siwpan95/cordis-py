@@ -136,6 +136,18 @@
           }
         },
         "onEnter": { "$ref": "#/definitions/Effects", "description": "进入场景时执行的效果" },
+        "variants": {
+          "type": "array",
+          "description": "文本变体池（Ink shuffle/cycle 的 YAML 化）：进入场景时按 variantMode 抽/轮一条替换主 text（进入时定一次，重绘不重抽）",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "variantMode": {
+          "type": "string",
+          "enum": ["shuffle", "cycle"],
+          "default": "shuffle",
+          "description": "shuffle = rng 随机抽（engine.seed 可复现）；cycle = 按 visits 计数轮转"
+        },
         "onExit": { "$ref": "#/definitions/Effects", "description": "离开场景时执行的效果（goto 流转时结算，先于新场景 onEnter）" },
         "mode": {
           "type": "string",

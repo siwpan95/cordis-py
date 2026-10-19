@@ -94,6 +94,25 @@ scenes:
 `once` 记录于 `state.onceSeen`，随存档持久化；`@restart` / `@loop:` 会清空
 调用栈与 once 记录（全量重置语义）。
 
+P9 体验与数据（文本变体 / 回滚 / 埋点分析）：
+
+```yaml
+scenes:
+  hall:
+    text: '兜底文本'
+    variants: ['大厅空荡荡的。', '大厅里点起了灯。', '大厅传来回声。']
+    variantMode: cycle        # 按 visits 轮转；shuffle = 随机（seed 可复现）
+```
+
+- **rollback**：游戏内输入 `rollback [n]`（别名 `rb`/`back`）回退 n 个选择点。
+  历史快照栈上限 `engine.config.maxHistory`（缺省 50）；语义是时间回溯
+  （重进场景会再跑 visits/onEnter，净效果与「未曾离开」一致）；历史属会话，
+  读档后清空。导出的 HTML 播放器自带「↩ 回滚一步」按钮。
+- **telemetry 埋点**：dse.yml 加 `- id: telemetry` 后，游玩过程的事件
+  （会话/进场景/选项/结局）JSONL 落盘 `telemetry.jsonl`（限工程目录内，
+  `DSE_TELEMETRY=0` 一键关闭）；`dse analyze` 输出场景访问 Top、选项分布
+  百分比、结局到达率 —— 独立作者的「选择埋点 → 迭代闭环」。
+
 ## 架构
 
 ```

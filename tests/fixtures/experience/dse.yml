@@ -1,0 +1,14 @@
+- id: scenes
+  config:
+    packs: [./content/experience.yml]
+- id: state
+  config:
+    initial: { gold: 0 }
+- id: io
+- id: telemetry
+  config:
+    file: telemetry-test.jsonl
+- id: engine
+  config:
+    entry: hall
+    seed: 7

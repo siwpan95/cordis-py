@@ -34,6 +34,7 @@ from .plugins.save_migrate import SaveMigrateService
 from .plugins.scenes import SceneService
 from .plugins.sound import SoundService
 from .plugins.state import StateService
+from .plugins.telemetry import TelemetryService
 from .plugins.trade import TradeService
 from .runtime import Context, Service
 
@@ -77,6 +78,7 @@ _BUILTIN_PLUGINS = {
     "i18n": I18nService,
     "sound": SoundService,
     "hot-reload": HotReloadService,
+    "telemetry": TelemetryService,
 }
 
 

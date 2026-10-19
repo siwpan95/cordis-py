@@ -47,6 +47,11 @@ class EngineService(Service):
         self.rng = random.Random(self.config.get("seed"))
         self._pending_exit: str | None = None  # 待执行 onExit 的旧场景 id
         self._call_stack: list[str] = []       # P8 tunnels：call 压栈 / @return 弹栈
+        self._variant_text: str | None = None  # P9：进入时定一次的文本变体
+        # P9 rollback：进入场景前的状态快照栈（上限 maxHistory，缺省 50）；
+        # 读档后清空 —— 历史属于会话，不随档迁移
+        self._history: list[dict] = []
+        self._max_history = int(self.config.get("maxHistory") or 50)
 
     # ------------------------------------------------------------ 生命周期
 
@@ -85,7 +90,17 @@ class EngineService(Service):
 
     def run(self) -> None:
         while self.running:
-            # 0. 旧场景 onExit 挂账结算（goto 时记录，此处兑现；先于新场景一切逻辑）
+            # 0a. rollback 历史快照：抢在一切状态变更（含旧场景 onExit 结算）之前
+            #     —— rollback 语义 = 回到上一个选择点，而不是 onExit 之后
+            if self._max_history > 0:
+                self._history.append({
+                    "scene": self.current,
+                    "state": self.ctx.state.snapshot(),
+                })
+                if len(self._history) > self._max_history:
+                    self._history.pop(0)
+
+            # 0b. 旧场景 onExit 挂账结算（goto 时记录，此处兑现；先于新场景一切逻辑）
             if self._pending_exit is not None:
                 old_id, self._pending_exit = self._pending_exit, None
                 old_scene = self.ctx.scenes.get(old_id)
@@ -95,12 +110,14 @@ class EngineService(Service):
 
             scene = self.ctx.scenes.get(self.current)
 
-            # 1. 进入场景：离开旧场景 / visits 计数 / 应用 onEnter（每进入一次只做一次）
+            # 1. 进入场景：离开旧场景 / visits 计数 / onEnter / 文本变体
             self.ctx.emit("scene/leave", self.current)
             # P8：内建访问计数（先于 onEnter，条件可写 visits.<id> > 0；随 state 入档）
             self.ctx.state.apply({f"visits.{self.current}": 1})
             for change in self.ctx.state.apply(scene.get("onEnter")):
                 self.ctx.info("engine", f"effect {change['path']}: {change['from']} -> {change['to']}")
+            # P9 文本变体：进入时定一次（重绘不重抽，避免闪烁）；None = 用主文本
+            self._variant_text = self._resolve_variant(scene)
 
             # mode 扩展点：默认 normal（引擎渲染选项并判定结局）；
             # 其他 mode 由插件接管界面与输入（bail 首个非 None/False 停）。
@@ -218,6 +235,39 @@ class EngineService(Service):
 
     # ------------------------------------------------------------ 渲染与命令
 
+    def _resolve_variant(self, scene: dict) -> str | None:
+        """P9 文本变体：variants 池按 variantMode 抽/轮一条替换主文本。
+
+        - shuffle：rng 随机抽（进入时定一次，重绘不重抽 —— 避免闪烁）
+        - cycle：按 visits.<scene> 轮转（首访取第 1 条；visits 刚自增过）
+        """
+        variants = scene.get("variants")
+        if not variants:
+            return None
+        mode = scene.get("variantMode") or "shuffle"
+        if mode == "cycle":
+            visits = self.ctx.state.get(f"visits.{self.current}") or 1
+            return str(variants[(int(visits) - 1) % len(variants)])
+        return str(self.rng.choice(list(variants)))
+
+    def rollback(self, steps: int = 1) -> bool:
+        """P9 回滚：弹 steps 个历史点，恢复到再前一个进入点的状态与场景。
+
+        语义 = 时间回溯（与 @loop 一致：重进场景会再跑 visits/onEnter，
+        净效果与「未曾离开」一致）；调用栈清空、onExit 挂账作废。
+        读档后历史为空 —— 历史属会话，不随档迁移。
+        """
+        if steps < 1 or len(self._history) <= steps:
+            return False
+        for _ in range(steps):
+            self._history.pop()
+        top = self._history[-1]
+        self.ctx.state.restore(top["state"])
+        self.current = top["scene"]
+        self._pending_exit = None
+        self._call_stack.clear()
+        return True
+
     @staticmethod
     def _once_key(scene_id: str, index: int, choice: dict) -> str:
         """once 选项的稳定标识：自定义字符串优先，缺省 <场景>#<序号>。
@@ -252,7 +302,8 @@ class EngineService(Service):
 
     def render(self, scene: dict, mode: str, handled: bool) -> list[dict]:
         """渲染当前场景界面（不产生任何状态变更），返回过滤后的选项列表。"""
-        text = scene.get("text", "")
+        # P9：进入时定下的文本变体优先于主文本（重绘不重抽）
+        text = self._variant_text if self._variant_text is not None else scene.get("text", "")
         # P6 条件文本段：extraText 逐项求值，为真才拼接（Ink 条件段的 YAML 化）
         for seg in scene.get("extraText") or []:
             if isinstance(seg, dict) and self.ctx.state.check(seg.get("if")):
@@ -295,7 +346,7 @@ class EngineService(Service):
             return {"type": "choice", "index": number - 1}
         cmd = line.strip().lower()
         if cmd in ("help", "?"):
-            self.ctx.io.print("内置命令: 选项编号进行选择 | help 帮助 | stats 查看状态 | quit 退出")
+            self.ctx.io.print("内置命令: 选项编号进行选择 | help 帮助 | stats 查看状态 | rollback [n] 回滚 | quit 退出")
             return {"type": "rerender"}
         if cmd in ("stats", "status"):
             get = self.ctx.state.get
@@ -306,4 +357,19 @@ class EngineService(Service):
             return {"type": "rerender"}
         if cmd in ("quit", "exit"):
             return {"type": "quit"}
+        # P9 rollback：rollback [n]（别名 rb/back），回退 n 个选择点
+        if cmd == "rb" or cmd == "back" or cmd == "rollback" or cmd.startswith("rollback "):
+            parts = cmd.split()
+            n = 1
+            if len(parts) > 1:
+                try:
+                    n = max(1, int(parts[1]))
+                except ValueError:
+                    self.ctx.io.print("（用法: rollback [n]，n 为正整数）")
+                    return {"type": "rerender"}
+            if self.rollback(n):
+                self.ctx.io.print(f"（已回滚到「{self.current}」，历史剩 {len(self._history)} 点）")
+                return {"type": "scene", "id": self.current}
+            self.ctx.io.print("（无可回滚的历史）")
+            return {"type": "rerender"}
         return {"type": "nothing"}

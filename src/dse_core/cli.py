@@ -508,6 +508,66 @@ def _cmd_export_html(args) -> int:
     return 0
 
 
+def _cmd_analyze(args) -> int:
+    """消费 telemetry 埋点 JSONL，输出路径分布报告（选择埋点 → 迭代闭环）。"""
+    import json
+    from collections import Counter
+
+    path = Path(args.root) / (args.file or "telemetry.jsonl")
+    if not path.is_file():
+        print(f"[analyze] 埋点文件不存在: {path}（先在 dse.yml 启用 telemetry 插件并游玩）", file=sys.stderr)
+        return 1
+
+    sessions = 0
+    scene_visits: Counter = Counter()
+    choice_counts: Counter = Counter()
+    endings: Counter = Counter()
+    bad_lines = 0
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                bad_lines += 1
+                continue
+            event = rec.get("event")
+            if event == "session/start":
+                sessions += 1
+            elif event == "scene/enter":
+                scene_visits[rec.get("scene") or "?"] += 1
+            elif event == "choice/made":
+                choice_counts[(rec.get("scene") or "?", rec.get("choice") or "?")] += 1
+            elif event == "engine/end":
+                endings[rec.get("scene") or "?"] += 1
+
+    print(f"埋点文件: {path}")
+    print(f"会话数: {sessions} | 场景访问 {sum(scene_visits.values())} 次 | 选择 {sum(choice_counts.values())} 次"
+          f" | 结局到达 {sum(endings.values())} 次" + (f" | 坏行 {bad_lines}" if bad_lines else ""))
+    if scene_visits:
+        print("\n场景访问 Top:")
+        for scene, n in scene_visits.most_common(args.top):
+            print(f"  {scene:<24} {n}")
+    if choice_counts:
+        print("\n选项分布:")
+        by_scene: dict[str, list] = {}
+        for (scene, choice), n in choice_counts.items():
+            by_scene.setdefault(scene, []).append((choice, n))
+        for scene, items in by_scene.items():
+            total = sum(n for _, n in items)
+            print(f"  #{scene}")
+            for choice, n in sorted(items, key=lambda x: -x[1]):
+                print(f"    {n:>4} ({n * 100 // total:>3}%)  {choice}")
+    if endings:
+        print("\n结局到达率:")
+        total_end = sum(endings.values())
+        for scene, n in endings.most_common():
+            print(f"  {scene:<24} {n}（{n * 100 // total_end}%）")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dse",
@@ -563,6 +623,12 @@ def main(argv: list[str] | None = None) -> int:
     p_html.add_argument("--title", help="页面标题（缺省取工程目录名）")
     p_html.add_argument("--root", default=None, help="工程根目录")
     p_html.set_defaults(func=_cmd_export_html)
+
+    p_analyze = sub.add_parser("analyze", help="消费 telemetry 埋点，输出路径分布报告")
+    p_analyze.add_argument("--file", help="埋点文件名（缺省 telemetry.jsonl）")
+    p_analyze.add_argument("--top", type=int, default=10, help="场景访问 Top N（缺省 10）")
+    p_analyze.add_argument("--root", default=None, help="工程根目录")
+    p_analyze.set_defaults(func=_cmd_analyze)
 
     args = parser.parse_args(argv)
     args.root = _resolve_root(args.root)

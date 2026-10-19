@@ -1,0 +1,33 @@
+pack: { id: experience, name: 体验特性演示, version: 0.1.0, entry: hall }
+scenes:
+  hall:
+    title: 大厅
+    text: 'placeholder'
+    variants:
+      - '大厅空荡荡的。'
+      - '大厅里点起了灯。'
+      - '大厅传来回声。'
+    variantMode: cycle
+    choices:
+      - text: 进内室
+        goto: room
+      - text: 赌一把（shuffle 变体）
+        goto: luck
+  room:
+    title: 内室
+    text: '桌上有一枚金币。'
+    onEnter: { gold: +1 }
+    choices:
+      - text: 回大厅
+        goto: hall
+  luck:
+    title: 运气屋
+    text: 'placeholder'
+    variants: ['抽到上上签。', '抽到平平签。']
+    variantMode: shuffle
+    choices:
+      - text: 回大厅
+        goto: hall
+  fin:
+    title: 终幕
+    text: '晚安。'

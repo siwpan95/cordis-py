@@ -40,6 +40,13 @@ def validate_scenes(pack: dict, source: str = "<inline>") -> list[str]:
         for key in ("onEnter", "onExit"):
             if key in scene and not isinstance(scene[key], dict):
                 errors.append(f"  - {at}: {key} 必须是效果对象")
+        variants = scene.get("variants")
+        if variants is not None:
+            if not isinstance(variants, list) or not variants or not all(isinstance(v, str) for v in variants):
+                errors.append(f"  - {at}: variants 必须是非空字符串数组")
+        vmode = scene.get("variantMode")
+        if vmode is not None and vmode not in ("shuffle", "cycle"):
+            errors.append(f"  - {at}: variantMode 须为 shuffle / cycle，实际 {vmode!r}")
         choices = scene.get("choices")
         if choices is not None and not isinstance(choices, list):
             errors.append(f"  - {at}: choices 必须是数组")

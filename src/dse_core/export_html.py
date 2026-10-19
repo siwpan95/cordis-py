@@ -86,6 +86,7 @@ let state = JSON.parse(JSON.stringify(GAME.initial));
 let current = GAME.entry;
 let pendingExit = null;
 let callStack = [];   // P8 tunnels：{call: x} 压栈 / @return 弹栈
+let history = [];     // P9 rollback：{scene, state} 快照栈（上限 50）
 
 function getPath(path) {
   let obj = state;
@@ -136,6 +137,10 @@ function pickWeighted(options) {
 }
 
 function render() {
+  // P9 rollback 快照：抢在一切状态变更之前（与引擎 0a 口径一致）
+  history.push({ scene: current, state: JSON.parse(JSON.stringify(state)) });
+  if (history.length > 50) history.shift();
+
   if (pendingExit !== null) {           // 旧场景 onExit 结算
     const old = GAME.scenes[pendingExit];
     pendingExit = null;
@@ -149,7 +154,15 @@ function render() {
   applyEffects(scene.onEnter);
 
   const mode = scene.mode || "normal";
+  // P9 文本变体：cycle 按 visits 轮转，shuffle 随机（进入即渲染一体，无重绘闪烁问题）
   let text = scene.text || "";
+  if (Array.isArray(scene.variants) && scene.variants.length > 0) {
+    if (scene.variantMode === "cycle") {
+      text = scene.variants[(state.visits[current] - 1) % scene.variants.length];
+    } else {
+      text = scene.variants[Math.floor(Math.random() * scene.variants.length)];
+    }
+  }
   for (const seg of scene.extraText || []) {
     if (checkExpr(seg.if)) text += "\\n" + (seg.text || "");
   }
@@ -164,6 +177,7 @@ function render() {
     document.getElementById("ending").textContent =
       "（此场景使用 " + mode + " 模式，单文件导出版不支持插件接管 —— 到此为止）";
     addRestart(box);
+    addRollback(box);
     return;
   }
   const onceSeen = new Set(state.onceSeen || []);
@@ -175,6 +189,7 @@ function render() {
   if (choices.length === 0) {
     document.getElementById("ending").textContent = "（完）";
     addRestart(box);
+    addRollback(box);
     return;
   }
   choices.forEach(({ c: choice, i: origIndex }) => {
@@ -216,6 +231,7 @@ function render() {
     };
     box.appendChild(btn);
   });
+  addRollback(box);
 }
 function addRestart(box) {
   const btn = document.createElement("button");
@@ -224,7 +240,26 @@ function addRestart(box) {
   btn.onclick = () => {
     state = JSON.parse(JSON.stringify(GAME.initial));
     pendingExit = null;
+    callStack = [];
+    history = [];
     current = GAME.entry;
+    render();
+  };
+  box.appendChild(btn);
+}
+// P9 rollback：有多于一个历史点时提供回滚入口（Ren'Py 式时间回溯）
+function addRollback(box) {
+  if (history.length < 2) return;
+  const btn = document.createElement("button");
+  btn.className = "choice";
+  btn.textContent = "↩ 回滚一步";
+  btn.onclick = () => {
+    history.pop();                    // 弹掉当前场景快照
+    const top = history[history.length - 1];
+    state = JSON.parse(JSON.stringify(top.state));
+    pendingExit = null;
+    callStack = [];
+    current = top.scene;
     render();
   };
   box.appendChild(btn);

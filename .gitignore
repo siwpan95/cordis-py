@@ -21,3 +21,4 @@ venv/
 # 运行时产物
 saves/
 *.log
+telemetry*.jsonl
