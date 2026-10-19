@@ -77,8 +77,28 @@ class HotReloadService(Service):
             if not changed:
                 continue
             time.sleep(self.debounce)  # 防抖：等写入稳定
-            for f in changed:
-                self._apply(f)
+            self._apply_many(changed)
+
+    def _apply_many(self, files: list[Path]) -> None:
+        """P10 批量提交：防抖窗口内的多文件变更只 rebuild 一次（逐包 emit 不变）。"""
+        root = self.ctx.root.resolve()
+        rels: list[str] = []
+        for f in files:
+            # 转成配置里 packs 的相对路径形式（./content/x.yml）。基准是 ctx 根
+            # 而非 cwd：从工程外启动时 cwd ≠ 根，相对路径会带上 ../ 前缀导致找不到包
+            try:
+                rels.append("./" + f.resolve().relative_to(root).as_posix())
+            except ValueError:
+                continue
+        if not rels:
+            return
+        results = self.ctx.scenes.reload_many(rels)
+        applied = [rel for rel, ok in results.items() if ok]
+        for rel in applied:
+            self.ctx.io.print(f"  ⚡ 内容已热更新：{rel}（场景总数 {self.ctx.scenes.size}）")
+            self.ctx.emit("hot-reload/applied", rel)
+        if applied:
+            self.ctx.io.wake("")
 
     def _apply(self, file: Path) -> None:
         # 转成配置里 packs 的相对路径形式（./content/x.yml）。基准是 ctx 根

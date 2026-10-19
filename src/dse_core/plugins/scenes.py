@@ -181,6 +181,39 @@ class SceneService(Service):
             self.ctx.error("scenes", f"reload rejected: {exc}（保留旧内容）")
             return False
 
+    def reload_many(self, rels: list[str]) -> dict[str, bool]:
+        """P10 批量热重载：逐包重读（坏包保留旧内容），全部读完后只 rebuild 一次。
+
+        对应 Cordis 三阶段部分重载的务实版：防抖窗口内多文件变更不再逐包
+        rebuild N 次。返回 {rel: 是否生效}；rebuild（组合校验）失败时所有
+        已重读包整体回滚 —— 不允许「一半新一半旧」的中间态。
+        """
+        results: dict[str, bool] = {}
+        changed: dict[str, dict] = {}
+        for rel in rels:
+            if rel not in self.loaded:
+                self.ctx.warn("scenes", f"reload skipped: 内容包 {rel} 不在配置中")
+                results[rel] = False
+                continue
+            try:
+                changed[rel] = self.import_pack(rel)
+                results[rel] = True
+            except (OSError, ValueError) as exc:
+                self.ctx.error("scenes", f"reload rejected: {exc}（保留旧内容）")
+                results[rel] = False
+        if not changed:
+            return results
+        previous = {rel: self.loaded[rel] for rel in changed}
+        self.loaded.update(changed)
+        try:
+            self.rebuild()
+        except ValueError as exc:
+            self.loaded.update(previous)  # 组合校验失败 → 整体回滚
+            for rel in changed:
+                results[rel] = False
+            self.ctx.error("scenes", f"批量 reload 组合校验失败，已全部回滚: {exc}")
+        return results
+
     def get(self, scene_id: str) -> dict:
         scene = self.dict.get(scene_id)
         if scene is None:

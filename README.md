@@ -113,6 +113,23 @@ scenes:
   `DSE_TELEMETRY=0` 一键关闭）；`dse analyze` 输出场景访问 Top、选项分布
   百分比、结局到达率 —— 独立作者的「选择埋点 → 迭代闭环」。
 
+P10 运行时深水区（对齐 Cordis rc.10 机制）：
+
+```python
+child = ctx.isolate("state", "scenes")   # 隔离域：列出服务独立注册
+child.plugin(StateService, {...})        # 同名不同实例，互不干扰
+child.start()                            # 未隔离服务沿父链解析；事件总线全局共享
+```
+
+- **ctx.isolate**：服务隔离域（测试隔离 / 多会话并存）；隔离名单内的服务
+  不向上穿透（未注册时响亮 AttributeError），`ctx.inspect()` 聚合子域 fiber
+  并标注 realm 深度
+- **批量热更**：`scenes.reload_many(rels)` —— 防抖窗口内多文件变更只
+  rebuild 一次；组合校验失败整体回滚，不留「一半新一半旧」中间态
+- **dse i18n-extract**：扫场景文本生成 `i18n/<locale>.yml` 待翻译表
+  （key = `<场景>.<字段>[.<序号>]`）；增量合并保留已译值，下线 key 进注释块
+  不静默丢翻译；已用 `@key@` 接管的内容自动跳过
+
 ## 架构
 
 ```

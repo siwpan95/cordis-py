@@ -568,6 +568,73 @@ def _cmd_analyze(args) -> int:
     return 0
 
 
+def _cmd_i18n_extract(args) -> int:
+    """P10 行级本地化提取（Yarn Spinner localization-first 的 dse 对应物）。
+
+    扫全部场景的 text / title / choices[].text / extraText[].text，生成
+    i18n/<locale>.yml 待翻译表：key = <场景>.<字段>[.<序号>]，value 缺省原文。
+    已存在的表增量合并 —— 已翻译的 key 保留译值，新 key 补原文，删除的 key
+    移入表尾注释块（不静默丢翻译）。
+    """
+    import yaml
+
+    root = Path(args.root)
+    data = load_dict(args.root)
+    scenes = data["dict"]
+
+    extracted: dict[str, str] = {}
+    for sid, scene in scenes.items():
+        if not isinstance(scene, dict):
+            continue
+        for field in ("text", "title"):
+            value = scene.get(field)
+            if isinstance(value, str) and value.strip() and "@" not in value:
+                extracted[f"{sid}.{field}"] = value
+        for i, choice in enumerate(scene.get("choices") or []):
+            if isinstance(choice, dict):
+                value = choice.get("text")
+                if isinstance(value, str) and value.strip() and "@" not in value:
+                    extracted[f"{sid}.choices.{i}"] = value
+        for j, seg in enumerate(scene.get("extraText") or []):
+            if isinstance(seg, dict):
+                value = seg.get("text")
+                if isinstance(value, str) and value.strip() and "@" not in value:
+                    extracted[f"{sid}.extraText.{j}"] = value
+
+    out_dir = root / "i18n"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{args.locale}.yml"
+
+    existing: dict = {}
+    if out_path.is_file():
+        loaded = load_yaml(out_path)
+        if isinstance(loaded, dict):
+            existing = loaded
+
+    merged: dict[str, str] = {}
+    kept = 0
+    for key, source in extracted.items():
+        if key in existing and existing[key] != source:
+            merged[key] = existing[key]  # 已译值优先（不被原文覆盖）
+            kept += 1
+        else:
+            merged[key] = source
+    orphans = sorted(k for k in existing if k not in extracted)
+
+    header = (
+        f"# dse i18n-extract 生成 · locale: {args.locale}\n"
+        f"# 共 {len(merged)} 条（保留已译 {kept} 条）；内容里以 @key@ 引用，"
+        f"dse.yml 的 i18n.locales.{args.locale} 挂本表\n"
+    )
+    body = yaml.safe_dump(merged, allow_unicode=True, sort_keys=True, width=120)
+    if orphans:
+        body += "\n# ---- 已下线的 key（源内容已删除，确认后手动清理）----\n"
+        body += "".join(f"# {k}: {existing[k]!r}\n" for k in orphans)
+    out_path.write_text(header + body, encoding="utf-8")
+    print(f"已提取 {len(merged)} 条文本 → {out_path}（保留已译 {kept} 条，下线 {len(orphans)} 条）")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dse",
@@ -629,6 +696,11 @@ def main(argv: list[str] | None = None) -> int:
     p_analyze.add_argument("--top", type=int, default=10, help="场景访问 Top N（缺省 10）")
     p_analyze.add_argument("--root", default=None, help="工程根目录")
     p_analyze.set_defaults(func=_cmd_analyze)
+
+    p_i18n = sub.add_parser("i18n-extract", help="提取场景文本生成待翻译表（增量合并保留已译值）")
+    p_i18n.add_argument("--locale", default="en-US", help="目标语言（缺省 en-US）")
+    p_i18n.add_argument("--root", default=None, help="工程根目录")
+    p_i18n.set_defaults(func=_cmd_i18n_extract)
 
     args = parser.parse_args(argv)
     args.root = _resolve_root(args.root)

@@ -100,6 +100,50 @@ class Context:
         self._listeners: dict[str, list] = {}
         self._setups: list[Service] = []
         self.fibers: dict[str, dict] = {}  # name -> {"state", "inject", "error"}
+        # P10 isolate：父上下文 + 本隔离域独立的服务名集合（None = 根域）
+        self._parent: "Context | None" = None
+        self._isolated: frozenset[str] = frozenset()
+        self._children: list[Context] = []  # 隔离子域登记（inspect 聚合用）
+
+    # ------------------------------------------------------------ 隔离域（P10）
+
+    def isolate(self, *service_names: str) -> "Context":
+        """创建一个服务隔离域（Cordis ``ctx.isolate`` 的 Python 原生对应物）。
+
+        子上下文与父共享事件总线 / fiber 表 / 配置；列出的服务名在子域内
+        独立注册（同名不同实例，互不干扰），未列出的服务沿父链解析。
+        典型用途：测试隔离（每个用例独立 state）、多会话并存（共享 io、
+        各自持有 scenes/state）。
+        """
+        child = Context(self.root, quiet=self.quiet)
+        child._parent = self
+        child._isolated = frozenset(service_names)
+        self._bus._children.append(child)
+        return child
+
+    @property
+    def _bus(self) -> "Context":
+        # 事件总线所在域（隔离域委托到根域）
+        ctx = self
+        while ctx._parent is not None:
+            ctx = ctx._parent
+        return ctx
+
+    def _resolve_service(self, name: str):
+        """服务解析：本地命中优先；隔离名单内的服务不向上穿透（响亮报错）。"""
+        if name in self.services:
+            return self.services[name]
+        if self._parent is not None and name not in self._isolated:
+            return self._parent._resolve_service(name)
+        raise AttributeError(name)
+
+    def _has_service(self, name: str) -> bool:
+        """服务是否已就绪（本域或父链；隔离名单内的不向上穿透）。"""
+        try:
+            self._resolve_service(name)
+            return True
+        except AttributeError:
+            return False
 
     # ------------------------------------------------------------ 注册与启动
 
@@ -121,7 +165,10 @@ class Context:
         while len(done) < len(declared):
             ready = [
                 name for name in declared
-                if name not in done and all(dep in done for dep in declared[name][0].inject)
+                if name not in done and all(
+                    dep in done or (dep not in declared and self._has_service(dep))
+                    for dep in declared[name][0].inject
+                )
             ]
             if not ready:
                 remaining = sorted(set(declared) - done)
@@ -161,10 +208,15 @@ class Context:
         self.services.clear()
 
     def inspect(self) -> list[dict]:
-        """全部 fiber 的快照（name / state / inject / error），供巡检与 doctor。"""
-        return [
-            {"name": name, **fiber} for name, fiber in self.fibers.items()
-        ]
+        """全部 fiber 的快照（name / state / inject / error），供巡检与 doctor。
+
+        根域调用时递归聚合隔离子域的 fiber（子域条目标注 realm 深度）。
+        """
+        snap = [{"name": name, **fiber} for name, fiber in self.fibers.items()]
+        for child in self._children:
+            for entry in child.inspect():
+                snap.append({**entry, "realm": entry.get("realm", 0) + 1})
+        return snap
 
     # ------------------------------------------------------------ 配置校验
 
@@ -206,11 +258,15 @@ class Context:
     # ------------------------------------------------------------ 事件
 
     def on(self, event: str, handler, owner: Service | None = None):
-        """注册监听器，返回 off 函数；指定 owner 时监听器随该插件 dispose 自动摘除。"""
-        self._listeners.setdefault(event, []).append(handler)
+        """注册监听器，返回 off 函数；指定 owner 时监听器随该插件 dispose 自动摘除。
+
+        隔离域子上下文的事件总线共享根域（事件是全局的，服务才是隔离的）。
+        """
+        bus = self._bus
+        bus._listeners.setdefault(event, []).append(handler)
 
         def off() -> None:
-            handlers = self._listeners.get(event, [])
+            handlers = bus._listeners.get(event, [])
             if handler in handlers:
                 handlers.remove(handler)
 
@@ -219,13 +275,13 @@ class Context:
         return off
 
     def emit(self, event: str, *args) -> None:
-        for handler in list(self._listeners.get(event, [])):
+        for handler in list(self._bus._listeners.get(event, [])):
             handler(*args)
 
     def parallel(self, event: str, *args) -> list:
         """并行扇出：容错收集全部监听器结果，单个失败 warn 后继续。"""
         results = []
-        for handler in list(self._listeners.get(event, [])):
+        for handler in list(self._bus._listeners.get(event, [])):
             try:
                 results.append(handler(*args))
             except Exception as exc:  # noqa: BLE001 — 扇出语义：单个失败不拖垮全局
@@ -236,13 +292,13 @@ class Context:
     def serial(self, event: str, *args) -> list:
         """串行链：按注册序收集结果，任一监听器抛错即停并上抛（中间件语义）。"""
         results = []
-        for handler in list(self._listeners.get(event, [])):
+        for handler in list(self._bus._listeners.get(event, [])):
             results.append(handler(*args))
         return results
 
     def bail(self, event: str, *args):
         """逆注册序，首个非 None/False 返回即停（scene/mode 委托）。"""
-        for handler in reversed(self._listeners.get(event, [])):
+        for handler in reversed(self._bus._listeners.get(event, [])):
             result = handler(*args)
             if result is not None and result is not False:
                 return result
@@ -250,13 +306,13 @@ class Context:
 
     def pipeline(self, event: str, value, *args):
         """顺序变换（text/render）：每个监听器接收当前值并返回新值。"""
-        for handler in self._listeners.get(event, []):
+        for handler in self._bus._listeners.get(event, []):
             value = handler(value, *args)
         return value
 
     def dispatch_command(self, line: str, choices: list):
         """引擎命令分发：逆注册序拦截；返回 None = 无人处理，回落默认命令。"""
-        for handler in reversed(self._listeners.get("engine/command", [])):
+        for handler in reversed(self._bus._listeners.get("engine/command", [])):
             result = handler(line, choices)
             if result is not None:
                 return result
@@ -282,7 +338,8 @@ class Context:
 
     def __getattr__(self, name: str) -> Service:
         # ctx.state / ctx.io / ctx.engine —— 与 Node 版一致的写法
+        # P10：经 _resolve_service 支持隔离域链式解析
         try:
-            return self.__dict__["services"][name]
-        except KeyError:
+            return self._resolve_service(name)
+        except AttributeError:
             raise AttributeError(name) from None
