@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**P1-P4 全部完成并发布**（0.1.0 / 0.2.0 / 0.3.0 均已上 PyPI；107 测试全绿）· 引擎侧无剩余缺口
+> 状态：**P1-P7 全部完成**（0.1.0 / 0.2.0 / 0.3.0 / **0.4.0** 均已上 PyPI；150 测试全绿）
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -142,6 +142,17 @@
 - token 来源：全哥指路 `G:\凭据管理器\私人令牌.txt`（siwpan 账号 9 月已建，TestPyPI + PyPI 双 token 现成；**无需注册**）。
 - 流程：`twine check` 双 PASSED → TestPyPI 上传 → 全新 venv 从 TestPyPI 装（注意：TestPyPI 缺新版依赖，须 `--extra-index-url https://pypi.org/simple`）→ 中立目录试玩通过 → PyPI 上传 → 匿名核对（JSON 元数据五项正确、项目页 200）→ 全新 venv `pip install dse-core` 试玩通过（exit 0）。
 - 小插曲：发布后 simple 索引有约 1 分钟传播延迟，`pip install` 一度 404，重试即成功——**发布后别急着判死刑**。
+
+## 7.3 发布实录（0.4.0，2026-10-19）—— P5-P7 增强版
+
+- **P5 内核层**：effect 可逆副作用原语（8 插件迁移 self.on，热重载零残留）+ fiber 状态机
+  + 事件五模式（补 parallel/serial）+ config_schema 校验 + doctor 拓扑巡检
+- **P6 叙事层**：extraText 条件段 / onExit 效果块 / 加权随机 goto（seed 可复现）
+- **P7 工具链**：dse graph（DOT/Mermaid）/ dse test（脚本回归）/ dse export-html（单文件播放器）
+- 测试 107 → 150 全绿；twine check 双 PASSED → 上传 → 匿名核对（latest=0.4.0，双文件在列）
+- **踩坑记账**：① PyPI JSON 索引传播延迟约 1 分钟（老坑重现）；② 腾讯云 pip 镜像同步
+  更慢，venv 验证须 `-i https://pypi.org/simple` 直连官方索引；③ E:\Python314 环境重建后
+  twine 未迁回，补装 7.0.0。
 
 ## 8. 工作量实话实说
 
