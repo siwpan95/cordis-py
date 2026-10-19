@@ -46,6 +46,7 @@ class EngineService(Service):
         # rng 状态不入存档 —— 读档后随机序列重新洗牌，属可接受语义）
         self.rng = random.Random(self.config.get("seed"))
         self._pending_exit: str | None = None  # 待执行 onExit 的旧场景 id
+        self._call_stack: list[str] = []       # P8 tunnels：call 压栈 / @return 弹栈
 
     # ------------------------------------------------------------ 生命周期
 
@@ -94,8 +95,10 @@ class EngineService(Service):
 
             scene = self.ctx.scenes.get(self.current)
 
-            # 1. 进入场景：离开旧场景 / 应用 onEnter 效果（每进入一次只做一次）
+            # 1. 进入场景：离开旧场景 / visits 计数 / 应用 onEnter（每进入一次只做一次）
             self.ctx.emit("scene/leave", self.current)
+            # P8：内建访问计数（先于 onEnter，条件可写 visits.<id> > 0；随 state 入档）
+            self.ctx.state.apply({f"visits.{self.current}": 1})
             for change in self.ctx.state.apply(scene.get("onEnter")):
                 self.ctx.info("engine", f"effect {change['path']}: {change['from']} -> {change['to']}")
 
@@ -154,17 +157,49 @@ class EngineService(Service):
                     effects = self.ctx.state.apply(choice.get("do"))
                     for change in effects:
                         self.ctx.info("engine", f"effect {change['path']}: {change['from']} -> {change['to']}")
+                    # P8：once 选项选过即记录（render 过滤时消失）
+                    if choice.get("once"):
+                        # result["index"] 是过滤后序号，须按对象身份找回原始序号
+                        # （与 render 过滤时 enumerate 的口径一致，否则键错位）
+                        raw_choices = scene.get("choices") or []
+                        orig_index = next(
+                            (i for i, c in enumerate(raw_choices) if c is choice),
+                            result["index"],
+                        )
+                        key = self._once_key(self.current, orig_index, choice)
+                        seen = list(self.ctx.state.get("onceSeen") or [])
+                        if key not in seen:
+                            seen.append(key)
+                            self.ctx.state.set("onceSeen", seen)
                     self.ctx.emit("choice/made", self.current, choice, effects)
                     goto = choice.get("goto")
                     if isinstance(goto, list):
                         goto = self._pick_weighted(goto)
+                    if isinstance(goto, dict):
+                        # P8 tunnels：{call: x} 压栈跳转，被调场景用 @return 返回
+                        call_target = goto.get("call")
+                        if isinstance(call_target, str):
+                            self._call_stack.append(self.current)
+                            goto = call_target
+                        else:
+                            goto = None
                     if goto is not None:
                         target = str(goto)
                         if target == "@restart":
+                            self._call_stack.clear()
                             self.ctx.state.reset()  # 全量重置回 entry（开局重玩）
                             self.goto(self.entry)
+                        elif target == "@return":
+                            # P8 tunnels：弹栈返回调用点；空栈响亮报错（内容错误不静默）
+                            if not self._call_stack:
+                                raise RuntimeError(
+                                    f'场景 "{self.current}" 使用了 @return，但调用栈为空'
+                                    "（@return 只能出现在经 goto: {call: ...} 进入的场景）"
+                                )
+                            self.goto(self._call_stack.pop())
                         elif target.startswith("@loop:"):
                             loop_entry = target[len("@loop:"):]
+                            self._call_stack.clear()
                             self.ctx.state.reset(keep=self.ctx.state.config.get("loopKeep") or [])
                             self.goto(loop_entry)
                         else:
@@ -182,6 +217,16 @@ class EngineService(Service):
                 choices = redraw()
 
     # ------------------------------------------------------------ 渲染与命令
+
+    @staticmethod
+    def _once_key(scene_id: str, index: int, choice: dict) -> str:
+        """once 选项的稳定标识：自定义字符串优先，缺省 <场景>#<序号>。
+
+        注意：缺省键随内容热更的选项增删而漂移 —— 长内容工程建议显式写
+        ``once: <key>`` 自定义键。
+        """
+        once = choice.get("once")
+        return once if isinstance(once, str) else f"{scene_id}#{index}"
 
     def _pick_weighted(self, options: list) -> str:
         """加权随机跳转：从 [{to, weight}] 中按权重抽一个目标。
@@ -215,8 +260,14 @@ class EngineService(Service):
         text = self.ctx.state.interpolate(text)
         text = self.ctx.pipeline("text/render", text)
 
-        # 条件求值过滤选项（每次重绘都重新求值，反映最新状态）
-        choices = [c for c in (scene.get("choices") or []) if self.ctx.state.check(c.get("if"))]
+        # 条件求值过滤选项（每次重绘都重新求值，反映最新状态）；
+        # P8：once 选项选过即消失（onceSeen 随 state 入档，读档后依然已读）
+        once_seen = set(self.ctx.state.get("onceSeen") or [])
+        choices = [
+            c for i, c in enumerate(scene.get("choices") or [])
+            if self.ctx.state.check(c.get("if"))
+            and not (c.get("once") and self._once_key(self.current, i, c) in once_seen)
+        ]
 
         title = self.ctx.state.interpolate(scene.get("title") or self.current)
         self.ctx.io.blank()

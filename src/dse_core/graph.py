@@ -25,6 +25,11 @@ def edges_of(scene_id: str, scene) -> list[dict]:
     out: list[dict] = []
     for choice in (scene or {}).get("choices") or []:
         goto = choice.get("goto")
+        if isinstance(goto, dict):  # P8 tunnels：{call: x} 是一条可达边
+            call = goto.get("call")
+            if isinstance(call, str) and call:
+                out.append({"from": scene_id, "to": call, "kind": "call", "raw": f"call:{call}"})
+            continue
         raws: list[str] = []
         if isinstance(goto, list):  # 加权随机跳转：每个分支都是一条出边
             raws = [str(item.get("to") or "") for item in goto if isinstance(item, dict)]
@@ -83,9 +88,12 @@ def analyze(scenes: dict, entry: str) -> dict:
             in_degree[edge["to"]] = in_degree.get(edge["to"], 0) + 1
             if edge["to"] not in scenes:
                 dangling.append(edge)
-        # 特殊目标自身的合法性（@loop: 目标必须存在）；加权 goto 逐项检查
+        # 特殊目标自身的合法性（@loop: 目标必须存在）；加权 goto 逐项检查；
+        # dict goto（tunnels call）在 edges_of 已计入出边，此处跳过
         for choice in (scene or {}).get("choices") or []:
             goto = choice.get("goto")
+            if isinstance(goto, dict):
+                continue
             raws = (
                 [str(item.get("to") or "") for item in goto if isinstance(item, dict)]
                 if isinstance(goto, list)

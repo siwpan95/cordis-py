@@ -76,11 +76,22 @@ class StateService(Service):
     # ------------------------------------------------------------ 效果与条件
 
     def apply(self, effects) -> list[dict]:
-        """执行一个效果对象，返回变更记录 [{path, from, to}]。"""
+        """执行一个效果对象，返回变更记录 [{path, from, to}]。
+
+        P8：特殊键 ``emit`` —— 值（字符串或字符串数组）作为事件名广播，
+        不写入状态。这是「事件即外部函数」桥：内容包在安全模型内
+        （不调用任何代码）通知宿主插件做事，宿主插件经 ctx.on 接管。
+        """
         changes: list[dict] = []
         if not effects:
             return changes
         for path, value in effects.items():
+            if path == "emit":
+                events = value if isinstance(value, list) else [value]
+                for evt in events:
+                    self.ctx.emit(str(evt))
+                    changes.append({"path": "emit", "from": None, "to": str(evt)})
+                continue
             current = self.get(path)
             if _is_number(value) and _is_number(current):
                 to = current + value

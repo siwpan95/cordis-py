@@ -19,12 +19,27 @@
       "properties": {
         "text": { "type": "string", "description": "选项文本，支持 {path} 状态插值" },
         "if": { "type": "string", "description": "显示条件表达式（基于玩家状态求值），缺省恒真" },
-        "do": { "$ref": "#/definitions/Effects", "description": "选中后执行的效果" },
+        "once": {
+          "description": "一次性选项：true = 选过即消失（键为 <场景>#<序号>）；字符串 = 自定义稳定键（推荐，防热更漂移）。记录于 state.onceSeen，随存档持久化",
+          "anyOf": [{ "type": "boolean" }, { "type": "string" }]
+        },
+        "do": {
+          "description": "选中后执行的效果；特殊键 emit（字符串或数组）广播事件给宿主插件，不写入状态",
+          "allOf": [{ "$ref": "#/definitions/Effects" }]
+        },
         "goto": {
-          "description": "跳转目标。普通场景 ID；特殊目标 @restart / @loop:<场景ID>；或加权随机分支数组 [{to, weight}]（weight 缺省 1，须为正数）",
+          "description": "跳转目标。普通场景 ID；特殊目标 @restart / @return / @loop:<场景ID>；加权随机分支数组 [{to, weight}]；隧道调用对象 {call: 场景ID}（被调场景用 @return 返回调用点）",
           "anyOf": [
-            { "type": "string", "pattern": "^@(restart|loop:[A-Za-z0-9._-]+)$" },
+            { "type": "string", "pattern": "^@(restart|return|loop:[A-Za-z0-9._-]+)$" },
             { "type": "string", "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*(\\.[a-z0-9]+([-_][a-z0-9]+)*)*$" },
+            {
+              "type": "object",
+              "required": ["call"],
+              "additionalProperties": false,
+              "properties": {
+                "call": { "type": "string", "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*(\\.[a-z0-9]+([-_][a-z0-9]+)*)*$" }
+              }
+            },
             {
               "type": "array",
               "minItems": 1,

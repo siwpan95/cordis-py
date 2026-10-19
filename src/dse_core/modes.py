@@ -7,12 +7,15 @@
 
 from __future__ import annotations
 
-SPECIAL_GOTO = frozenset({"@restart"})
+SPECIAL_GOTO = frozenset({"@restart", "@return"})
 LOOP_PREFIX = "@loop:"
 
 
 def is_special_goto(target) -> bool:
-    """特殊跳转目标（引擎语义，非场景）：@restart 或 @loop:<id>。"""
+    """特殊跳转目标（引擎语义，非场景）：@restart / @return / @loop:<id>。
+
+    @return：从 tunnels 隧道（goto: {call: x}）弹栈返回调用点。
+    """
     return target in SPECIAL_GOTO or str(target).startswith(LOOP_PREFIX)
 
 

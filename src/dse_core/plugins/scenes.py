@@ -53,6 +53,12 @@ def validate_scenes(pack: dict, source: str = "<inline>") -> list[str]:
                         errors.append(f"  - {at}: 第 {i + 1} 个选项的加权跳转第 {k + 1} 项缺少 to")
                     elif not isinstance(item.get("weight", 1), (int, float)) or item.get("weight", 1) <= 0:
                         errors.append(f"  - {at}: 第 {i + 1} 个选项的加权跳转第 {k + 1} 项权重必须为正数")
+            elif isinstance(goto, dict):
+                if not isinstance(goto.get("call"), str):
+                    errors.append(f"  - {at}: 第 {i + 1} 个选项的隧道跳转缺少 call 场景 ID")
+            if isinstance(choice, dict) and "once" in choice \
+                    and not isinstance(choice["once"], (bool, str)):
+                errors.append(f"  - {at}: 第 {i + 1} 个选项的 once 必须是布尔或字符串键")
     return errors
 
 
@@ -68,6 +74,12 @@ def find_dangling(scenes: dict) -> list[str]:
             target = choice.get("goto")
             if target is None:
                 dangling.append(f"  - #{scene_id} 第 {i + 1} 个选项缺少 goto（选中后无法流转，会重放 onEnter）")
+                continue
+            # 隧道调用：校验 call 目标（@return 是动态弹栈，静态免检）
+            if isinstance(target, dict):
+                call = target.get("call")
+                if isinstance(call, str) and call not in scenes:
+                    dangling.append(f'  - #{scene_id} 第 {i + 1} 个选项 -> call "{call}"（隧道目标不存在）')
                 continue
             # 加权随机跳转：逐项校验 to
             if isinstance(target, list):

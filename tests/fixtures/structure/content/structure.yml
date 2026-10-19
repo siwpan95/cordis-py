@@ -1,0 +1,33 @@
+pack: { id: structure, name: 结构特性演示, version: 0.1.0, entry: plaza }
+scenes:
+  plaza:
+    title: 广场
+    text: '人来人往。这是你第 {visits.plaza} 次站在这里。'
+    choices:
+      - text: 逛商店（隧道）
+        goto: { call: shop }
+      - text: 看一眼告示牌
+        once: true
+        do: { gold: +1, emit: notice/read }
+        goto: plaza
+      - text: 去后巷
+        goto: alley
+  shop:
+    title: 商店
+    text: '老板：随便看。'
+    choices:
+      - text: 离开商店
+        goto: '@return'
+  alley:
+    title: 后巷
+    text: '垃圾桶翻倒着。'
+    choices:
+      - text: 翻垃圾桶
+        once: looted-bin
+        do: { gold: +5 }
+        goto: alley
+      - text: 回广场
+        goto: plaza
+  ending:
+    title: 落幕
+    text: '剧终。'

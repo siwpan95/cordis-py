@@ -72,6 +72,28 @@ scenes:
 加权随机的确定性来源：`dse.yml` 里 `engine.config.seed` 固定后结果可复现
 （测试 / CI 友好）；缺省真随机。rng 状态不入存档，读档后重新洗牌。
 
+P8 叙事结构（对标 Ink tunnels / 一次性选项 / 访问计数）：
+
+```yaml
+scenes:
+  plaza:
+    text: '这是你第 {visits.plaza} 次站在这里。'   # visits 内建计数，先于 onEnter
+    choices:
+      - text: 逛商店
+        goto: { call: shop }       # tunnels：压栈跳转，可复用内容块
+      - text: 看一眼告示牌
+        once: true                 # 选过即消失；once: <key> 自定义稳定键（推荐）
+        do: { gold: +1, emit: notice/read }   # emit：事件桥接宿主插件，不写状态
+        goto: plaza
+  shop:
+    text: '老板：随便看。'
+    choices:
+      - { text: 离开商店, goto: '@return' }    # 弹栈返回调用点；空栈响亮报错
+```
+
+`once` 记录于 `state.onceSeen`，随存档持久化；`@restart` / `@loop:` 会清空
+调用栈与 once 记录（全量重置语义）。
+
 ## 架构
 
 ```

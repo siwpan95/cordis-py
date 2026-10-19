@@ -85,6 +85,7 @@ const GAME = __DATA__;
 let state = JSON.parse(JSON.stringify(GAME.initial));
 let current = GAME.entry;
 let pendingExit = null;
+let callStack = [];   // P8 tunnels：{call: x} 压栈 / @return 弹栈
 
 function getPath(path) {
   let obj = state;
@@ -106,6 +107,10 @@ function setPath(path, value) {
 function applyEffects(effects) {
   if (!effects) return;
   for (const [path, value] of Object.entries(effects)) {
+    if (path === "emit") {  // P8：浏览器端无插件宿主，事件记录日志即尽力而为
+      console.info("[dse] emit:", value);
+      continue;
+    }
     const cur = getPath(path);
     const isNum = (v) => typeof v === "number";
     setPath(path, isNum(value) && isNum(cur) ? cur + value : value);
@@ -138,6 +143,9 @@ function render() {
   }
   const scene = GAME.scenes[current];
   if (!scene) { document.getElementById("text").textContent = "（场景缺失: " + current + "）"; return; }
+  // P8：visits 内建计数（先于 onEnter，与引擎口径一致）
+  state.visits = state.visits || {};
+  state.visits[current] = (typeof state.visits[current] === "number" ? state.visits[current] : 0) + 1;
   applyEffects(scene.onEnter);
 
   const mode = scene.mode || "normal";
@@ -158,24 +166,47 @@ function render() {
     addRestart(box);
     return;
   }
-  const choices = (scene.choices || []).filter((c) => checkExpr(c.if));
+  const onceSeen = new Set(state.onceSeen || []);
+  // P8：保留原始序号（once 缺省键 = 场景#原始序号），过滤后不能丢
+  const choices = (scene.choices || [])
+    .map((c, i) => ({ c, i }))
+    .filter(({ c, i }) => checkExpr(c.if)
+      && !(c.once && onceSeen.has(typeof c.once === "string" ? c.once : current + "#" + i)));
   if (choices.length === 0) {
     document.getElementById("ending").textContent = "（完）";
     addRestart(box);
     return;
   }
-  choices.forEach((choice) => {
+  choices.forEach(({ c: choice, i: origIndex }) => {
     const btn = document.createElement("button");
     btn.className = "choice";
     btn.textContent = interpolate(choice.text);
     btn.onclick = () => {
       applyEffects(choice.do);
+      if (choice.once) {
+        const key = typeof choice.once === "string" ? choice.once : current + "#" + origIndex;
+        state.onceSeen = state.onceSeen || [];
+        if (!state.onceSeen.includes(key)) state.onceSeen.push(key);
+      }
       let goto = choice.goto;
       if (Array.isArray(goto)) goto = pickWeighted(goto);
+      if (goto && typeof goto === "object") {  // P8 tunnels：{call: x} 压栈
+        callStack.push(current);
+        goto = goto.call;
+      }
       if (goto === "@restart") {
         state = JSON.parse(JSON.stringify(GAME.initial));
+        callStack = [];
         current = GAME.entry;
+      } else if (goto === "@return") {
+        if (callStack.length === 0) {
+          document.getElementById("ending").textContent = "（@return 调用栈为空 —— 内容错误）";
+          return;
+        }
+        pendingExit = current;
+        current = callStack.pop();
       } else if (typeof goto === "string" && goto.startsWith("@loop:")) {
+        callStack = [];
         current = goto.slice(6);
       } else if (typeof goto === "string") {
         pendingExit = current;
