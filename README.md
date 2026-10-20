@@ -4,10 +4,22 @@
 > 本仓库是引擎的 **Python 原生实现**（cordis-py），Node/Cordis 版见姊妹仓库
 > [dse-core](https://gitee.com/siwpan/dse-core)。立项计划书见 [PLAN.md](PLAN.md)。
 
+[![PyPI](https://img.shields.io/pypi/v/dse-core)](https://pypi.org/project/dse-core/)
+[![Python](https://img.shields.io/pypi/pyversions/dse-core)](https://pypi.org/project/dse-core/)
+[![License](https://img.shields.io/pypi/l/dse-core)](https://pypi.org/project/dse-core/)
+
+**PyPI**：<https://pypi.org/project/dse-core/> ｜ **发行名 `dse-core` / 导入名 `dse_core`**
+（连字符 vs 下划线；CLI 命令是 `dse`。⚠ 别和 Gitee 上的 Node 版仓库 `siwpan/dse-core` 弄混 ——
+**PyPI 上的 `dse-core` 就是本仓**，见 `pyproject.toml` 的 `name`。）
+
+> **版本对照（2026-10-20 核）**：PyPI 上最新为 **0.5.0**，本仓 `pyproject.toml` 为 **0.4.0**
+> —— 0.5.0 那次发版未随提交入库，属于**版本漂移**。以 PyPI 徽章/链接为「已发布版本」的准，
+> 以 `pyproject.toml` 为「仓库源码版本」的准。
+
 ## 30 秒上手
 
 ```bash
-pip install -e .          # 开发安装（或 pip install dse-core）
+pip install dse-core      # 从 PyPI 安装（开发安装见文末）
 dse play                  # 玩自带示例内容包（战斗线最小可玩版）
 dse play --input "1,1,a,a,a"   # 脚本模式：无交互跑完整条线路（CI 友好）
 dse scenes                # 列出场景
