@@ -24,7 +24,9 @@ dse play                  # 玩自带示例内容包（战斗线最小可玩版�
 dse play --input "1,1,a,a,a"   # 脚本模式：无交互跑完整条线路（CI 友好）
 dse scenes                # 列出场景
 dse packs                 # 列出内容包（manifest / 依赖声明）
-dse check                 # 校验内容（悬空跳转等），有问题退出码 1
+dse check                 # 静态校验内容（Schema / 悬空跳转），有问题退出码 1
+dse traverse              # 动态遍历：真的跑引擎走遍全图，执行每条 goto 边/效果/条件
+dse coverage              # 结局覆盖门：每个结局须有 traverse(T) 或 e2e(E) 来源，双缺退出码 1
 dse doctor                # 体检 + 内容模式 vs 已装插件交叉核对
 dse saves                 # 离线列出存档位
 dse new my-pack --template hub   # 脚手架生成 YAML 内容包并挂进 dse.yml
@@ -35,6 +37,28 @@ dse export-html -o game.html     # P7：导出单文件 HTML 播放器（normal 
 
 自带示例工程随包发布（`src/dse_core/example/`）：在含 `dse.yml` 的目录里
 运行 `dse play` 玩你自己的工程，否则玩包内示例。
+
+### 两道内容门：check 管结构，traverse 管跑得通
+
+`dse check` 是**静态**的（毫秒级）：看 Schema、看悬空跳转、看图的连通性，**不执行**任何条件或效果。
+`dse traverse` 是**动态**的（秒级）：真的把引擎跑起来，在每个场景用当时的真实状态求值条件、
+执行效果、跟随实际跳转。两者抓的问题不重叠：
+
+| 问题 | `dse check` | `dse traverse` |
+|------|:--:|:--:|
+| 悬空跳转、Schema 不符 | ✅ | — |
+| 条件表达式写炸（求值抛异常） | ❌ | ✅ |
+| 选项条件恒假，场景实际是死路 | ❌（结构上边是通的） | ✅ |
+| 新加了结局但没有任何路径能到 | ❌ | ✅（配合 `dse coverage`） |
+
+```bash
+dse traverse --json                       # 结构化输出，便于 CI 解析
+dse coverage --e2e end-secret             # 声明某个结局已由 e2e 用例覆盖（可重复）
+```
+
+`traverse` 会从 `entry` 做 DFS，用 `state.snapshot()/restore()` 隔离分支，结束后还原现场 ——
+**只读操作，不留副作用**。时间循环内容（`@loop`）靠 `--max-revisit`（缺省 3）与
+`--max-steps`（缺省 500）收敛，撞限的分支会如实报「截断」而不是静默跳过。
 
 ## 内容包 = 数据，不是代码
 
@@ -148,13 +172,14 @@ child.start()                            # 未隔离服务沿父链解析；事�
 dse_core/
 ├── modes.py       # 模式注册表（scene.mode 唯一真源）
 ├── graph.py       # 场景图静态分析（可达性/悬空/结局/最短路径，纯函数）
+├── traverse.py    # 场景图动态遍历（真跑引擎：DFS + 状态隔离 + 结局覆盖门）
 ├── manifest.py    # 内容包元数据（规范化/校验）
 ├── loader.py      # 工程加载（dse.yml + YAML 内容包合并）
 ├── schema.py      # JSON Schema 校验（schema/scene.schema.json）
 ├── safety.py      # 条件表达式 AST 白名单求值
 ├── runtime.py     # 插件运行时（Service/Context/依赖拓扑/事件）—— Cordis 的 Python 原生替代
 ├── sdk.py         # 编程式门面（create_engine / play / inspect_project）
-├── cli.py         # 命令行 dse：play / scenes / info / check / packs / saves / doctor / new
+├── cli.py         # 命令行 dse：play / scenes / info / check / traverse / coverage / packs / saves / doctor / new
 └── plugins/       # 内核层 scenes/state/console_io/engine
                    # 能力层 combat/trade/diary/dialogue（各接管一种 scene.mode）
                    # 系统层 save/save-migrate/achievements/i18n

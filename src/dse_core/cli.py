@@ -635,6 +635,93 @@ def _cmd_i18n_extract(args) -> int:
     return 0
 
 
+def _run_traverse(args):
+    """装配引擎跑一次遍历，返回 (trace, ctx)。调用方负责 dispose。"""
+    from .sdk import create_engine
+    from .traverse import traverse
+
+    # create_engine(entry=...) 会写 DSE_ENTRY 到进程环境且不清理；遍历是只读操作，
+    # 结束后必须还原，否则同一进程内后续命令会被这次 --entry 带偏。
+    prev_entry = os.environ.get("DSE_ENTRY")
+    ctx = create_engine(args.root, entry=args.entry)
+    try:
+        # engine.entry 已经正确处理「--entry 覆盖 > dse.yml 的 engine.entry > start」
+        entry = args.entry or ctx.services["engine"].entry
+        trace = traverse(
+            ctx,
+            entry=entry,
+            seed=getattr(args, "seed", None),
+            max_steps=getattr(args, "max_steps", 500),
+            max_revisit=getattr(args, "max_revisit", 3),
+        )
+    except Exception:
+        ctx.dispose()
+        raise
+    finally:
+        if prev_entry is None:
+            os.environ.pop("DSE_ENTRY", None)
+        else:
+            os.environ["DSE_ENTRY"] = prev_entry
+    return trace, ctx
+
+
+def _cmd_traverse(args) -> int:
+    """状态遍历：动态走遍全图，验证条件/效果/跳转真的能跑通。
+
+    与 ``dse check`` 的分工：check 是静态校验（Schema / 悬空），不会执行条件；
+    traverse 真的把引擎跑起来，因此能抓到「条件表达式炸了」「选项条件恒假导致
+    死路」这类静态查不出的问题。
+    """
+    trace, ctx = _run_traverse(args)
+    try:
+        if args.json:
+            print(json.dumps(trace.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            print(f"访问场景: {len(trace.visited)} | 走过边: {len(trace.edges)} | 结局: {len(trace.endings)}")
+            print(f"完整路径: {trace.paths}")
+            if trace.endings:
+                print(f"可达结局: {', '.join(sorted(trace.endings))}")
+            if trace.truncated:
+                print(f"截断分支: {'; '.join(trace.truncated)}", file=sys.stderr)
+            if trace.errors:
+                print(f"发现 {len(trace.errors)} 个问题:", file=sys.stderr)
+                for e in trace.errors:
+                    print(f"  - [{e['scene']}] {e['error']}", file=sys.stderr)
+        return 1 if trace.errors else 0
+    finally:
+        ctx.dispose()
+
+
+def _cmd_coverage(args) -> int:
+    """结局覆盖门：每个结局都要有来源，双缺即失败（退出码 1）。
+
+    来源：T = 本次动态遍历走到；E = --e2e 声明的既有端到端用例。
+    这条门专门拦「新加了结局但没人验证过」—— 静态 lint 对此完全无感。
+    """
+    from .traverse import coverage
+
+    trace, ctx = _run_traverse(args)
+    try:
+        report = coverage(ctx.services["scenes"], trace, e2e_endings=args.e2e)
+        if args.json:
+            print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            print(f"结局总数: {len(report.endings)} | 有来源: {len(report.covered)} | 缺来源: {len(report.missing)}")
+            for scene_id in report.endings:
+                src = "+".join(report.sources.get(scene_id) or []) or "—"
+                mark = "✓" if report.sources.get(scene_id) else "✗"
+                print(f"  {mark} {scene_id}  [{src}]")
+            if report.missing:
+                print(
+                    f"[coverage] ✗ 以下结局没有任何来源（traverse 走不到、也未声明 --e2e）: "
+                    f"{', '.join(report.missing)}",
+                    file=sys.stderr,
+                )
+        return 0 if report.ok else 1
+    finally:
+        ctx.dispose()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dse",
@@ -701,6 +788,29 @@ def main(argv: list[str] | None = None) -> int:
     p_i18n.add_argument("--locale", default="en-US", help="目标语言（缺省 en-US）")
     p_i18n.add_argument("--root", default=None, help="工程根目录")
     p_i18n.set_defaults(func=_cmd_i18n_extract)
+
+    p_traverse = sub.add_parser(
+        "traverse", help="状态遍历：从 entry 真实驱动引擎走遍全图（CI 友好）"
+    )
+    p_traverse.add_argument("--entry", help="覆盖入口场景 ID")
+    p_traverse.add_argument("--json", action="store_true", help="输出结构化结果（管道消费）")
+    p_traverse.add_argument("--seed", type=int, help="固定加权随机种子（结果可复现）")
+    p_traverse.add_argument("--max-steps", type=int, default=500, help="单路径步数上限（缺省 500）")
+    p_traverse.add_argument("--max-revisit", type=int, default=3,
+                            help="同一场景在一条路径上的最大重进次数（缺省 3，供 @loop 内容）")
+    p_traverse.add_argument("--root", default=None, help="工程根目录")
+    p_traverse.set_defaults(func=_cmd_traverse)
+
+    p_cover = sub.add_parser(
+        "coverage", help="结局覆盖门：每个结局须有 traverse(T) 或 e2e(E) 来源，双缺退出码 1"
+    )
+    p_cover.add_argument("--entry", help="覆盖入口场景 ID")
+    p_cover.add_argument("--e2e", action="append", metavar="SCENE",
+                         help="声明某个结局已由 e2e 用例覆盖（可多次）")
+    p_cover.add_argument("--json", action="store_true", help="输出结构化结果")
+    p_cover.add_argument("--seed", type=int, help="固定加权随机种子")
+    p_cover.add_argument("--root", default=None, help="工程根目录")
+    p_cover.set_defaults(func=_cmd_coverage)
 
     args = parser.parse_args(argv)
     args.root = _resolve_root(args.root)

@@ -1,6 +1,6 @@
 # cordis-py 立项计划书
 
-> 状态：**P1-P10 全部完成**（0.1.0 / 0.2.0 / 0.3.0 / 0.4.0 / **0.5.0** 均已上 PyPI；193 测试全绿）
+> 状态：**P1-P11 全部完成**（0.1.0 / 0.2.0 / 0.3.0 / 0.4.0 / 0.5.0 / **0.6.0** 均已上 PyPI；207 测试全绿）
 > 一句话：把 dse-core（字典场景引擎，Node/Cordis 4.0）移植为 **Python 原生引擎**，发布到 PyPI。
 
 ---
@@ -193,6 +193,84 @@
 
 > 注：PyPI 的 `upload_time` 是 **UTC**，本地提交时间是 **UTC+8**，比对时要先换算
 > （0.1.0 的落点就是靠这个换算定出来的 —— 只看提交信息会误选到 `2e40435`）。
+
+## 7.5 发布实录（0.6.0，2026-10-20）—— P11 遍历与覆盖门
+
+### 为什么补这一版
+
+核账时发现 Python 版与 Node 版存在**一处实质能力缺口**，不是文档或版本号的差异：
+
+Node 版 `tests/traverse.mjs` + `tests/coverage.mjs` 有**动态**遍历与结局覆盖两级门，
+而 Python 版只有 `dse check`（静态：Schema + 悬空跳转 + 图分析）。两者抓的东西不同：
+
+| | `dse check`（静态） | `dse traverse`（动态） |
+|---|---|---|
+| 是否执行条件表达式 | ❌ 不执行 | ✅ 按真实状态求值 |
+| 是否执行效果（onEnter/onExit/emit） | ❌ | ✅ |
+| 能抓「`if` 恒假导致死路」 | ❌ 结构上边是通的 | ✅ |
+| 能抓「条件/效果表达式写炸」 | ❌ | ✅ |
+| 代价 | 毫秒级 | 秒级（要跑引擎） |
+
+所以这一版是**补齐**，而不是「再提一档版本号」。
+
+### P11 内容
+
+- **`dse_core/traverse.py`（新模块）**
+  - `traverse(ctx, entry=, max_steps=, max_revisit=, seed=)`：从 entry 做 **DFS**，
+    逐场景调用 `engine.render()` 拿到**当前状态过滤后**的真实选项，沿每条 goto 递归，
+    记录走过的边 `(from, to, kind)`、访问场景、可达结局、完整路径数、错误列表。
+  - 分支隔离靠 `state.snapshot()/restore()`：兄弟分支互不污染；遍历整体从 `state.reset()`
+    开始、`finally` 里还原调用方原状态 —— 遍历是**只读操作**，不留副作用。
+  - 终止保证：`max_steps`（缺省 500）+ `max_revisit`（同场景在一条路径上最多进 3 次，
+    给 `@loop` 时间循环内容留正常空间又不至于不收敛）。
+  - `coverage(scenes, trace, e2e_endings=)`：每个结局须有来源 ——
+    `T`（本次遍历走到）或 `E`（调用方 `--e2e` 声明的既有用例），**双缺即失败**。
+- **CLI 两个子命令**：`dse traverse`、`dse coverage`，均支持 `--entry/--json/--seed/--root`
+  （coverage 另有可重复的 `--e2e`），退出码按门禁结果给（有问题/缺来源 → 1）。
+
+### 实跑验证（打包内的 example 工程）
+
+```
+$ dse traverse
+访问场景: 7 | 走过边: 9 | 结局: 3
+完整路径: 39
+可达结局: end-hero, forest-lose, inn-wait
+截断分支: start（重访超限 3）        # start 自环，属预期
+
+$ dse coverage
+结局总数: 3 | 有来源: 3 | 缺来源: 0
+  ✓ end-hero  [T]   ✓ forest-lose  [T]   ✓ inn-wait  [T]
+退出码: 0
+```
+
+两处**门禁有效性**的反向验证（都确认会失败，不是摆设）：
+
+1. 造一个「没人能走到」的孤儿结局 → `coverage` 退出码 **1**，点名该结局；
+   加 `--e2e <该结局>` 后退出码 **0**（E 来源生效）。
+2. 造一个「所有选项条件恒假」的场景 → `traverse` 退出码 **1**，
+   报 `[start] 无可用去向（所有选项条件均为假）`；而同一工程 `dse check` **通过**
+   —— 这正是静态分析看不见、只有动态遍历才能抓的那一类问题。
+
+### 实现过程中踩的坑（记账）
+
+- `SceneService.get()` 对不存在的场景**抛 KeyError 而不是返回 None**，所以遍历前要
+  `scenes.has()` 先判 —— 否则「悬空跳转」会被当成崩溃而不是一条 error 记录。
+- `SceneService` **没有 `.items()`**，`coverage()` 要取 `getattr(scenes, "dict", scenes)`
+  才能同时吃 `SceneService` 和裸 dict。
+- `engine.render()` 会**直接往 stdout 打印整个界面**（标题/正文/选项），不吞掉的话跑一次
+  traverse 会把全树剧情刷满屏 —— 用 `contextlib.redirect_stdout(io.StringIO())` 只为拿返回值。
+- 截断记录一开始按分支累加，同一个自环撞 27 次就刷 27 条一模一样的记录、把真问题淹没；
+  改为「场景+原因」去重。
+- `create_engine(entry=...)` 会写 **`DSE_ENTRY` 进程环境变量且不清理**，遍历结束后必须
+  还原（CLI 里 save/restore），否则同进程后续命令会被这次 `--entry` 带偏。
+- 「悬空 goto」这一项本想用 traverse 抓，结果发现 `SceneService.rebuild()` 在**加载期**
+  就抛 `ValueError("存在未定义的场景跳转")` —— 门禁已经更早生效了，测试改为断言加载期拒绝。
+
+### 发版
+
+- 版本号 0.5.0 → 0.6.0（`pyproject.toml` + `sdk.__version__`，**这次随提交入库**）。
+- 测试 193 → **207 全绿**（新增 `tests/test_traverse_p11.py` 14 项）。
+- `twine check` 双 PASSED → 上传 PyPI → 匿名核对 JSON 元数据 + 全新 venv 安装试玩。
 
 ## 8. 工作量实话实说
 
