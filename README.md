@@ -1,5 +1,12 @@
 # dse-core · 字典场景引擎（Python 版）
 
+## 仓库角色定位（投资组合分级 ①）
+
+> 本仓在 siwpan 投资组合（D:/projects/repos，共 133 仓）中定级为 **① 核心推进**，领域 **游戏引擎/框架**，定位 **引擎平台层**。
+> **角色**：dse-core 的 Python 版场景引擎内核，随 dse-core 维护。
+> **维护策略**：① 核心推进——持续投入、不允许冻结；随所属收敛点 / 流水线长期演进。
+> 投资组合统一分级索引：`D:/projects/repos/PORTFOLIO_TIERING.md`。
+
 > Dictionary Scene Engine —— 场景即字典，能力即插件。
 > 本仓库是引擎的 **Python 原生实现**（cordis-py），Node/Cordis 版见姊妹仓库
 > [dse-core](https://gitee.com/siwpan/dse-core)。立项计划书见 [PLAN.md](PLAN.md)。
